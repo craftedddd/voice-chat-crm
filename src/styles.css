@@ -1031,9 +1031,9 @@ button {
 }
 
 /* ============================================================
-   DESKTOP: kartu portrait adaptif (mengikuti proporsi desain)
-   Tinggi kartu mengisi sisa layar, selalu menyisakan margin bawah.
-   Batas: tinggi 560 sampai 774, lebar maksimum 533 (rasio sekitar 1 : 1,45).
+   DESKTOP: tinggi kartu adaptif dengan margin bawah
+   Lebar tetap seperti semula (640). Tinggi mengisi sisa layar,
+   maksimum 620 dan minimum 560, selalu menyisakan margin bawah.
 ============================================================ */
 @media (min-width: 1221px) {
   .main { padding-bottom: 48px; }
@@ -1044,10 +1044,8 @@ button {
   }
 
   .voicecard {
-    /* lebar mengecil mengikuti tinggi layar agar tetap terasa portrait */
-    max-width: min(533px, max(440px, calc((100dvh - 233px) * 0.85)));
     min-height: 560px;
-    max-height: 774px;
+    max-height: 620px;
   }
 
   .sidecol { align-self: flex-start; }
