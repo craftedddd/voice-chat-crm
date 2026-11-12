@@ -15,8 +15,10 @@ orb gradien dibuat murni dengan CSS.
 - Assistant proaktif: setiap jawaban ditutup rekomendasi dan tawaran bantuan ("Want me to draft a check-in to Acme Co.?"). Jawab "yes" atau "no", lalu ia menindaklanjuti dengan langkah berikutnya (draft, kirim atau simpan, pengingat) dan menawarkan hal penting berikutnya
 - Ask Me First: saat kamu meminta aksi langsung ("send a follow up email"), assistant mengonfirmasi dulu. Jika dimatikan, aksi langsung dijalankan tanpa bertanya
 - Mute/unmute, akhiri sesi, mulai ulang, timer sesi, dan ucapan seperti "goodbye" juga mengakhiri sesi
+- Ringkasan sesi saat selesai: durasi, aksi, catatan, topik, rekomendasi berikutnya, transkrip, salin, unduh, dan rating
+- Toast beranimasi di atas area konten (titik turun lalu mekar menjadi pill). Aksi assistant bisa dibatalkan lewat tombol Undo atau dengan mengucapkan "undo that"
 
-Contoh yang bisa diucapkan: "Which deals are waiting on a reply?", "Tell me about Acme", "What is due today?", "What should I do next?", "Send a follow up email", "Schedule a call with Globex". Saat ditawari bantuan, jawab "yes", "not now", atau pilihan seperti "send it now" / "keep it in drafts".
+Contoh yang bisa diucapkan: "Which deals are waiting on a reply?", "Tell me about Acme", "What is due today?", "What should I do next?", "Send a follow up email", "Schedule a call with Globex", "Undo that". Saat ditawari bantuan, jawab "yes", "not now", atau pilihan seperti "send it now" / "keep it in drafts".
 
 **UI lainnya:**
 

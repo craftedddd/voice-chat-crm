@@ -1,10 +1,11 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { IconRail, NavPanel } from './components/NavSide.jsx'
 import VoiceCard from './components/VoiceCard.jsx'
 import SettingsPanel from './components/SettingsPanel.jsx'
 import { PlusIcon, MenuIcon, CloseIcon } from './icons.jsx'
 import useVoiceChat from './voice/useVoiceChat.js'
 import { BRIEFINGS } from './voice/brain.js'
+import { Toaster, useToaster } from './components/Toast.jsx'
 
 const TABS = ['Everything', 'Deals', 'Contacts', 'Tasks']
 
@@ -24,14 +25,9 @@ export default function App() {
   // Drawer navigasi untuk layar kecil
   const [navOpen, setNavOpen] = useState(false)
 
-  // Toast kecil untuk aksi di luar cakupan demo
-  const [toast, setToast] = useState(null)
-  const toastTimer = useRef(null)
-  const showToast = (msg) => {
-    setToast(msg)
-    clearTimeout(toastTimer.current)
-    toastTimer.current = setTimeout(() => setToast(null), 2400)
-  }
+  // Toast: satu pill beranimasi di atas area konten
+  const toaster = useToaster()
+  const showToast = toaster.api.show
 
   // Voice chat sungguhan (mic + pengenalan suara + suara balasan)
   const voice = useVoiceChat({ tab: activeTab, aiMode, askFirst, onToast: showToast })
@@ -99,7 +95,7 @@ export default function App() {
               {t}
             </button>
           ))}
-          <button className="tab tab--plus" aria-label="Add context" onClick={() => showToast('Adding a custom context is outside this demo')}>
+          <button className="tab tab--plus" aria-label="Add context" onClick={() => showToast('Custom contexts are coming soon')}>
             <PlusIcon size={15} />
           </button>
         </div>
@@ -120,7 +116,7 @@ export default function App() {
             onStart={voice.start}
             onToggleMute={voice.toggleMute}
             onEnd={voice.end}
-            onInvite={() => showToast('Inviting teammates is outside this demo')}
+            onInvite={() => showToast('Inviting teammates is coming soon')}
             onToast={showToast}
           />
 
@@ -142,11 +138,7 @@ export default function App() {
         </div>
       )}
 
-      {toast && (
-        <div className="toast" role="status">
-          {toast}
-        </div>
-      )}
+      <Toaster {...toaster} />
     </div>
   )
 }

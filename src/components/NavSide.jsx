@@ -43,7 +43,7 @@ export function IconRail({ activeRail, onRail, onToast }) {
             className={`rail__btn ${activeRail === id ? 'is-active' : ''}`}
             aria-label={label}
             title={label}
-            onClick={() => (id === 'ai' ? onRail(id) : onToast(`${label} is outside this demo`))}
+            onClick={() => (id === 'ai' ? onRail(id) : onToast(`${label} is coming soon`))}
           >
             <Icon size={19} />
           </button>
@@ -54,7 +54,7 @@ export function IconRail({ activeRail, onRail, onToast }) {
           className="rail__btn"
           aria-label="Settings"
           title="Settings"
-          onClick={() => onToast('Settings is outside this demo')}
+          onClick={() => onToast('Settings are coming soon')}
         >
           <GearIcon size={19} />
         </button>
@@ -62,7 +62,7 @@ export function IconRail({ activeRail, onRail, onToast }) {
           className="rail__btn rail__avatar"
           aria-label="Profile"
           title="Profile"
-          onClick={() => onToast('Profile is outside this demo')}
+          onClick={() => onToast('Your profile is coming soon')}
         >
           <AvatarIcon size={18} />
         </button>
@@ -160,7 +160,7 @@ export function NavPanel({
                   <button
                     key={label}
                     className="navlist__subitem"
-                    onClick={() => onToast(`${label} settings is outside this demo`)}
+                    onClick={() => onToast(`${label} settings are coming soon`)}
                   >
                     {label}
                   </button>

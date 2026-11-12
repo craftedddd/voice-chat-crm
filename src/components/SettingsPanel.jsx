@@ -37,7 +37,7 @@ export default function SettingsPanel({
           <h2 className="settings__title">Voice Settings</h2>
           <button
             className="settings__link"
-            onClick={() => onToast('The full voice settings page is outside this demo')}
+            onClick={() => onToast('Full voice settings are coming soon')}
           >
             All voice settings <ExternalIcon size={12} />
           </button>

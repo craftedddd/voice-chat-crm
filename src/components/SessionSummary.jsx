@@ -101,11 +101,11 @@ export default function SessionSummary({ summary: sum, onRestart, onToast }) {
 
   const onCopy = async () => {
     const ok = await copyText(summaryText(sum, false))
-    onToast(ok ? 'Summary copied to clipboard' : "Couldn't copy. Try downloading instead.")
+    onToast(ok ? { kind: 'success', text: 'Summary copied' } : { kind: 'error', text: "Couldn't copy. Try downloading" })
   }
   const onDownload = () => {
     downloadText(summaryText(sum, true), sum.startedAt)
-    onToast('Summary and transcript downloaded')
+    onToast({ kind: 'success', text: 'Summary downloaded' })
   }
   const rate = (v) => setRating((cur) => (cur === v ? null : v))
 

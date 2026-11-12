@@ -18,6 +18,16 @@ function toAction(toast) {
   return { label: label.charAt(0).toUpperCase() + label.slice(1), kind }
 }
 
+// Teks setelah aksi dibatalkan (toast) dan ucapan assistant saat diminta "undo"
+const UNDONE = { send: 'Email unsent', draft: 'Draft deleted', remind: 'Reminder removed', calendar: 'Removed from calendar' }
+const UNDO_SPEECH = {
+  send: 'Okay, I pulled that email back before it went out.',
+  draft: 'Okay, I deleted that draft.',
+  remind: 'Okay, I removed that reminder.',
+  calendar: 'Okay, I took that off your calendar.',
+}
+const undoneText = (a) => (a.kind === 'draft' && /drafts/i.test(a.label) ? 'Drafts deleted' : UNDONE[a.kind])
+
 /**
  * Mesin status voice chat:
  * idle -> connecting -> listening <-> thinking -> speaking -> listening ... -> ended
@@ -48,7 +58,9 @@ export default function useVoiceChat({ tab, aiMode, askFirst, onToast }) {
     restarts: [],
     // catatan sesi untuk ringkasan
     log: [], // { who: 'user' | 'ai' | 'note', text, t }
-    actions: [], // { label, kind }
+    actions: [], // { id, label, kind, mark, followUp }
+    actionSeq: 0,
+    netErrors: 0,
     startedAt: 0,
     mode: 'brief',
     tabAtStart: 'Everything',
@@ -64,6 +76,13 @@ export default function useVoiceChat({ tab, aiMode, askFirst, onToast }) {
   }
   const toast = (msg) => live.current.onToast?.(msg)
 
+  const micBlockedToast = () => ({
+    kind: 'error',
+    key: 'err:mic',
+    text: 'Allow microphone access, then retry',
+    action: { label: 'Retry', onClick: () => start() },
+  })
+
   function stopRecognition() {
     const rec = r.current.rec
     r.current.rec = null
@@ -74,6 +93,18 @@ export default function useVoiceChat({ tab, aiMode, askFirst, onToast }) {
     } catch {
       /* abaikan */
     }
+  }
+
+  /** Batalkan satu aksi: hapus dari daftar, buka lagi rekomendasinya. */
+  function undoAction(id) {
+    const s = r.current
+    const a = s.actions.find((x) => x.id === id)
+    if (!a) return null
+    s.actions = s.actions.filter((x) => x.id !== id)
+    if (a.mark) s.ctx = { ...s.ctx, done: s.ctx.done.filter((m) => m !== a.mark) }
+    if (a.followUp && s.ctx.pending === a.followUp) s.ctx = { ...s.ctx, pending: null }
+    setSummary((sum) => (sum ? { ...sum, actions: sum.actions.filter((x) => x.id !== id) } : sum))
+    return a
   }
 
   function buildSummary() {
@@ -151,6 +182,7 @@ export default function useVoiceChat({ tab, aiMode, askFirst, onToast }) {
     setCaption({ who: 'user', lead: text, tail: '' })
     s.thinkTimer = setTimeout(() => {
       if (!s.active) return
+      const before = s.ctx
       const out = respond({
         text,
         mode: live.current.aiMode,
@@ -159,9 +191,32 @@ export default function useVoiceChat({ tab, aiMode, askFirst, onToast }) {
         ctx: s.ctx,
       })
       s.ctx = out.ctx
+
+      // "Undo that": batalkan aksi terakhir
+      if (out.undo) {
+        const last = s.actions[s.actions.length - 1]
+        if (last) {
+          undoAction(last.id)
+          toast({ kind: 'undo', text: undoneText(last) })
+          say(`${UNDO_SPEECH[last.kind]} Anything else?`)
+        } else {
+          say("There's nothing to undo yet. Anything else?")
+        }
+        return
+      }
+
       if (out.toast) {
-        toast(out.toast)
-        s.actions.push(toAction(out.toast))
+        const a = toAction(out.toast)
+        a.id = ++s.actionSeq
+        a.mark = out.ctx.done.find((m) => !before.done.includes(m)) || null
+        a.followUp = out.ctx.pending
+        s.actions.push(a)
+        toast({
+          kind: 'success',
+          text: a.label,
+          key: `action:${a.id}`,
+          action: { label: 'Undo', onClick: () => undoAction(a.id), after: { text: undoneText(a) } },
+        })
       }
       say(out.reply, !!out.endCall)
     }, 450 + Math.random() * 350)
@@ -183,6 +238,7 @@ export default function useVoiceChat({ tab, aiMode, askFirst, onToast }) {
     rec.onresult = (e) => {
       if (s.rec !== rec) return
       s.bump = 0.55
+      s.netErrors = 0
       const text = Array.from(e.results)
         .map((x) => x[0].transcript)
         .join(' ')
@@ -195,10 +251,24 @@ export default function useVoiceChat({ tab, aiMode, askFirst, onToast }) {
     rec.onerror = (e) => {
       if (s.rec !== rec) return
       if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
-        toast('Microphone access is blocked. Allow it in your browser settings, then try again.')
+        toast(micBlockedToast())
         endSession('idle')
       } else if (e.error === 'network') {
-        toast('The browser speech service is unreachable. Check your connection.')
+        s.netErrors += 1
+        const again = s.netErrors > 1
+        toast({
+          kind: 'error',
+          key: `err:net:${again ? 2 : 1}`,
+          text: again ? 'Still offline. Check your connection' : "Can't reach the speech service",
+          action: {
+            label: 'Retry',
+            onClick: () => {
+              if (!r.current.active) return
+              r.current.restarts = []
+              beginListening()
+            },
+          },
+        })
       }
     }
 
@@ -211,7 +281,11 @@ export default function useVoiceChat({ tab, aiMode, askFirst, onToast }) {
       s.restarts = s.restarts.filter((t) => now - t < 3000)
       s.restarts.push(now)
       if (s.restarts.length > 6) {
-        toast('Voice recognition keeps stopping. Tap the mic to try again.')
+        toast({
+          kind: 'error',
+          text: 'Voice keeps cutting out',
+          action: { label: 'Retry', onClick: () => r.current.active && live.current.muted && toggleMute() },
+        })
         live.current.muted = true
         setMuted(true)
         return
@@ -231,7 +305,7 @@ export default function useVoiceChat({ tab, aiMode, askFirst, onToast }) {
     const s = r.current
     if (s.active || s.status === 'connecting') return
     if (!supported) {
-      toast("Voice chat isn't supported in this browser. Try Chrome, Edge, or Safari.")
+      toast({ kind: 'error', text: 'Voice needs Chrome, Edge, or Safari' })
       return
     }
     primeSpeech() // harus sinkron di dalam gestur klik
@@ -247,6 +321,7 @@ export default function useVoiceChat({ tab, aiMode, askFirst, onToast }) {
     setSummary(null)
     s.log = []
     s.actions = []
+    s.netErrors = 0
     s.startedAt = 0
 
     try {
@@ -261,8 +336,8 @@ export default function useVoiceChat({ tab, aiMode, askFirst, onToast }) {
       ctx?.close().catch(() => {})
       toast(
         err && err.name === 'NotFoundError'
-          ? 'No microphone was found on this device.'
-          : 'Microphone access is blocked. Allow it in your browser settings, then try again.'
+          ? { kind: 'error', text: 'No microphone found', action: { label: 'Retry', onClick: () => start() } }
+          : micBlockedToast()
       )
       go('idle')
       return

@@ -936,27 +936,141 @@ button {
 /* ============================================================
    TOAST
 ============================================================ */
-.toast {
+/* ------------------------------------------------------------
+   Toast: satu pill di atas tengah area konten.
+   Titik turun dari atas, mekar, isi berganti dengan morph.
+------------------------------------------------------------ */
+.toaster {
+  --toast-left: 312px; /* rail + panel navigasi */
   position: fixed;
-  left: 50%;
-  bottom: 28px;
-  transform: translateX(-50%);
-  background: #1f2027;
-  color: #fff;
-  font-size: 13px;
-  font-weight: 500;
-  padding: 11px 18px;
-  border-radius: 999px;
-  box-shadow: 0 14px 34px -14px rgba(0, 0, 0, 0.45);
+  top: calc(env(safe-area-inset-top, 0px) + 18px);
+  left: calc(var(--toast-left) + (100vw - var(--toast-left)) / 2);
+  width: 0;
+  height: 40px;
+  display: flex;
+  justify-content: center;
   z-index: 100;
-  animation: toast-in 0.28s var(--ease);
-  max-width: calc(100vw - 32px);
-  text-align: center;
+  pointer-events: none;
 }
 
-@keyframes toast-in {
-  from { opacity: 0; transform: translate(-50%, 10px); }
-  to { opacity: 1; transform: translate(-50%, 0); }
+.toast {
+  --spring: cubic-bezier(0.34, 1.32, 0.52, 1);
+  flex: 0 0 auto;
+  position: relative;
+  height: 40px;
+  max-width: calc(100vw - 32px);
+  border-radius: 999px;
+  background: #1f2027;
+  color: #fff;
+  box-shadow:
+    0 14px 32px -14px rgba(15, 16, 22, 0.55),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  pointer-events: auto;
+  transition:
+    width 0.52s var(--spring),
+    transform 0.42s var(--spring),
+    opacity 0.26s ease,
+    filter 0.3s ease;
+  animation-duration: 0.36s;
+  animation-timing-function: var(--spring);
+}
+
+/* fase */
+.toast.is-enter,
+.toast.is-leave {
+  transform: translateY(-38px) scale(0.3);
+  opacity: 0;
+  filter: blur(6px);
+}
+.toast.is-dot,
+.toast.is-closing { transform: translateY(0) scale(0.34); }
+.toast.is-open { transform: none; }
+.toast.is-closing {
+  transition:
+    width 0.34s cubic-bezier(0.5, 0, 0.3, 1),
+    transform 0.34s cubic-bezier(0.5, 0, 0.3, 1) 0.04s;
+}
+.toast.is-leave {
+  transition:
+    transform 0.32s cubic-bezier(0.5, 0, 0.75, 0),
+    opacity 0.26s ease,
+    filter 0.26s ease;
+}
+
+/* denyut kecil saat pesan yang sama muncul lagi */
+@keyframes toast-pulse-a { 40% { scale: 1.05; } }
+@keyframes toast-pulse-b { 40% { scale: 1.05; } }
+
+.toast__content {
+  grid-area: 1 / 1;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: max-content;
+  max-width: calc(100vw - 32px);
+  padding: 0 17px 0 11px;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: -0.005em;
+  transition: opacity 0.24s ease, filter 0.24s ease;
+}
+.toast__content.has-action { padding-right: 6px; }
+.toast:not(.is-open) .toast__content { opacity: 0; filter: blur(4px); }
+
+.toast__content.is-in { animation: toast-content-in 0.38s cubic-bezier(0.2, 0.8, 0.2, 1) 0.06s both; }
+.toast__content.is-out { animation: toast-content-out 0.26s ease both; }
+
+@keyframes toast-content-in {
+  from { opacity: 0; filter: blur(6px); transform: translateY(5px) scale(0.97); }
+  to { opacity: 1; filter: blur(0); transform: none; }
+}
+@keyframes toast-content-out {
+  to { opacity: 0; filter: blur(6px); transform: translateY(-5px) scale(0.97); }
+}
+
+.toast__icon { flex: 0 0 18px; }
+
+.toast__text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.toast__action {
+  flex: 0 0 auto;
+  margin-left: 1px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 650;
+  color: #aab6ff;
+  transition: background 0.18s var(--ease), color 0.18s var(--ease);
+}
+.toast__action:hover { background: rgba(255, 255, 255, 0.09); color: #c9d1ff; }
+.toast__action:focus-visible { outline: 2px solid #aab6ff; outline-offset: 1px; }
+
+@media (max-width: 960px) {
+  .toaster { --toast-left: 64px; }
+}
+@media (max-width: 640px) {
+  .toaster { --toast-left: 0px; top: calc(env(safe-area-inset-top, 0px) + 12px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .toast,
+  .toast.is-closing,
+  .toast.is-leave { transition: opacity 0.2s ease; animation: none !important; }
+  .toast.is-enter,
+  .toast.is-dot,
+  .toast.is-closing,
+  .toast.is-leave { transform: none; filter: none; opacity: 0; }
+  .toast__content.is-in,
+  .toast__content.is-out { animation: none; }
+  .toast__content.is-out { display: none; }
 }
 
 /* ============================================================

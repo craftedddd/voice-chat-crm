@@ -42,7 +42,7 @@ const STEPS = {
     ],
     yes: {
       reply: 'Done. I drafted a short check-in that mentions the proposal and asks one clear question.',
-      toast: 'Demo action: check-in draft saved for Acme Co.',
+      toast: 'Acme Co. check-in drafted',
       next: 'ask_send_acme',
     },
     no: { reply: 'No problem.', next: 'offer_remind_acme' },
@@ -55,7 +55,7 @@ const STEPS = {
         words: ['send', 'now', 'yes', 'yeah', 'sure', 'go ahead', 'ok', 'okay'],
         out: {
           reply: "Sent. I'll keep an eye out for their reply.",
-          toast: 'Demo action: email sent to Acme Co.',
+          toast: 'Email sent to Acme Co.',
           next: 'offer_remind_acme_later',
         },
       },
@@ -67,12 +67,12 @@ const STEPS = {
   },
   offer_remind_acme: {
     ask: ['Want me to remind you about Acme Co. tomorrow morning instead?'],
-    yes: { reply: "Done. I set a reminder for tomorrow at 9.", toast: 'Demo action: reminder set for tomorrow, 9:00', mark: 'acme' },
+    yes: { reply: "Done. I set a reminder for tomorrow at 9.", toast: 'Reminder set for 9:00 tomorrow', mark: 'acme' },
     no: { reply: "Understood. I'll leave Acme Co. for now.", mark: 'acme' },
   },
   offer_remind_acme_later: {
     ask: ["Want me to set a reminder in two days in case they don't reply?"],
-    yes: { reply: 'Done. The reminder is set for two days from now.', toast: 'Demo action: reminder set in 2 days', mark: 'acme' },
+    yes: { reply: 'Done. The reminder is set for two days from now.', toast: 'Reminder set in 2 days', mark: 'acme' },
     no: { reply: 'Okay, no reminder.', mark: 'acme' },
   },
   offer_call_globex: {
@@ -80,7 +80,7 @@ const STEPS = {
       'Want me to book a 15 minute call with Globex on your calendar for tomorrow at 10?',
       'Shall I put a quick call with Globex on your calendar for tomorrow at 10?',
     ],
-    yes: { reply: "Booked. It's on your calendar for tomorrow at 10.", toast: 'Demo action: call with Globex booked, tomorrow 10:00', mark: 'globex' },
+    yes: { reply: "Booked. It's on your calendar for tomorrow at 10.", toast: 'Globex call booked for tomorrow', mark: 'globex' },
     no: { reply: "Alright, I'll skip Globex for now.", mark: 'globex' },
   },
   offer_proposal_northwind: {
@@ -90,7 +90,7 @@ const STEPS = {
     ],
     yes: {
       reply: "Done. The draft is ready with your standard pricing. I'd review the totals before sending it.",
-      toast: 'Demo action: proposal draft created for Northwind',
+      toast: 'Northwind proposal drafted',
       mark: 'northwind',
     },
     no: { reply: 'Okay, no rush on Northwind.', mark: 'northwind' },
@@ -102,7 +102,7 @@ const STEPS = {
     ],
     yes: {
       reply: 'Done. Both notes mention the webinar topic they engaged with, so they should feel personal.',
-      toast: 'Demo action: 2 outreach drafts saved',
+      toast: '2 outreach drafts saved',
       mark: 'webinar',
     },
     no: { reply: "Okay, I'll leave the webinar contacts for now.", mark: 'webinar' },
@@ -112,7 +112,7 @@ const STEPS = {
       'Want me to block 30 minutes this morning on your calendar for the three quick calls?',
       'Shall I block some time this morning for those three quick calls?',
     ],
-    yes: { reply: 'Blocked. I scheduled 30 minutes at 11 for your quick calls.', toast: 'Demo action: 30 min blocked at 11:00', mark: 'tasks' },
+    yes: { reply: 'Blocked. I scheduled 30 minutes at 11 for your quick calls.', toast: '30 min blocked at 11:00', mark: 'tasks' },
     no: { reply: "No problem, I'll leave your calendar as it is.", mark: 'tasks' },
   },
   offer_suggest: {
@@ -259,6 +259,11 @@ export function openingFor(tab) {
 export function respond({ text, mode, askFirst, tab, ctx: prev }) {
   const t = norm(text)
   const ctx = prev || { pending: null, done: [] }
+
+  // 0) Batalkan aksi terakhir ("undo that"); eksekusinya ada di useVoiceChat
+  if (/\b(undo|take (that|it) back|revert that|cancel that)\b/.test(t)) {
+    return { undo: true, reply: '', ctx: { ...ctx, pending: null } }
+  }
 
   // 1) Jawaban untuk tawaran / pertanyaan sebelumnya
   if (ctx.pending && STEPS[ctx.pending]) {
