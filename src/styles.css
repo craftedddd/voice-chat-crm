@@ -366,7 +366,7 @@ button {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 26px;
+  gap: 34px;
 }
 
 /* ------------------------------------------------------------
@@ -390,6 +390,27 @@ button {
     inset 0 0 0 1px rgba(168, 172, 205, 0.35);
   animation: orb-float 7s ease-in-out infinite;
   transition: filter 0.6s var(--ease), opacity 0.6s var(--ease);
+  /* --lvl (0..1) ditulis tiap frame oleh Orb.jsx sesuai level suara */
+  --lvl: 0;
+  scale: calc(1 + var(--lvl) * 0.07);
+}
+
+/* Halo di luar tepi orb: menyala sesuai level suara */
+.orb::before {
+  content: '';
+  position: absolute;
+  inset: -18%;
+  border-radius: 50%;
+  z-index: -1;
+  pointer-events: none;
+  background: radial-gradient(
+    circle closest-side,
+    rgba(139, 124, 246, 0) 0 62%,
+    rgba(139, 124, 246, 0.4) 74%,
+    rgba(139, 124, 246, 0) 100%
+  );
+  opacity: calc(0.12 + var(--lvl) * 0.88);
+  scale: calc(0.94 + var(--lvl) * 0.28);
 }
 
 /* Lapisan kabut: di-blur sekali di parent agar ringan */
@@ -399,8 +420,16 @@ button {
   border-radius: 50%;
   overflow: hidden;
   filter: blur(7.5px) saturate(1.3);
-  /* sedikit mengecil agar blur tidak bocor keluar rim */
   transform: translateZ(0);
+}
+
+/* Isi kabut membesar dan menguat sesuai level suara (tetap terpotong bentuk bola) */
+.orb__swirl {
+  position: absolute;
+  inset: 0;
+  scale: calc(1 + var(--lvl, 0) * 0.3);
+  opacity: calc(0.78 + var(--lvl, 0) * 0.22);
+  will-change: scale, opacity;
 }
 
 .orb__blob {
@@ -523,9 +552,7 @@ button {
   to { transform: rotate(360deg); }
 }
 
-/* State: perilaku lama dipertahankan */
-.orb.is-speaking { animation: orb-float 7s ease-in-out infinite, orb-breathe 2.8s ease-in-out infinite; }
-
+/* State */
 .orb.is-muted { filter: saturate(0.45); }
 .orb.is-muted .orb__blob { animation-play-state: paused; }
 
@@ -536,11 +563,6 @@ button {
 @keyframes orb-float {
   0%, 100% { transform: translateY(0); }
   50% { transform: translateY(-5px); }
-}
-
-@keyframes orb-breathe {
-  0%, 100% { box-shadow: 0 26px 50px -24px rgba(118, 88, 255, 0.45); }
-  50% { box-shadow: 0 30px 58px -22px rgba(118, 88, 255, 0.62); }
 }
 
 .voicecard__timer {
@@ -576,6 +598,27 @@ button {
 
 .t-lead { color: var(--ink); }
 .t-tail { color: var(--muted-2); }
+
+.voicecard__captionwrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  animation: caption-in 0.3s var(--ease);
+}
+
+.voicecard__who {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 10px;
+}
+
+.voicecard__captions--live {
+  font-size: 20px;
+  animation: none;
+}
 
 .voicecard__captions--off {
   font-size: 15px;
@@ -624,6 +667,9 @@ button {
 
 .ctl:hover { background: #dde6fb; }
 .ctl:active { transform: scale(0.94); }
+.ctl:disabled { opacity: 0.38; cursor: not-allowed; }
+.ctl:disabled:hover { background: var(--accent-soft); }
+.ctl:disabled:active { transform: none; }
 
 .ctl--mic {
   width: 62px;
@@ -632,6 +678,12 @@ button {
   position: relative;
   z-index: 2;
 }
+
+.ctl--start {
+  background: var(--accent);
+  color: #fff;
+}
+.ctl--start:hover { background: var(--accent-deep); }
 
 .ctl--primary {
   width: 62px;
@@ -962,6 +1014,7 @@ button {
 
   .voicecard__middle { padding-top: 28px; padding-bottom: 28px; }
   .voicecard__captions { font-size: 18.5px; max-width: 100%; }
+  .voicecard__captions--live { font-size: 17px; }
   .orb { width: 104px; height: 104px; }
   .ctl { width: 48px; height: 48px; }
   .ctl--mic, .ctl--primary { width: 56px; height: 56px; }

@@ -3,36 +3,12 @@ import { IconRail, NavPanel } from './components/NavSide.jsx'
 import VoiceCard from './components/VoiceCard.jsx'
 import SettingsPanel from './components/SettingsPanel.jsx'
 import { PlusIcon, MenuIcon, CloseIcon } from './icons.jsx'
+import useVoiceChat from './voice/useVoiceChat.js'
+import { BRIEFINGS } from './voice/brain.js'
 
 const TABS = ['Everything', 'Deals', 'Contacts', 'Tasks']
 
-const TRANSCRIPTS = {
-  Everything: {
-    lead: 'You have three deals waiting on a reply. The biggest is Acme Co., worth $12,000',
-    tail: ', with no reply for nine days....',
-  },
-  Deals: {
-    lead: 'Pipeline looks healthy this week. Four deals moved into negotiation',
-    tail: ', and Northwind is ready for a proposal....',
-  },
-  Contacts: {
-    lead: 'You added six new contacts from the webinar. Two of them opened your follow-up',
-    tail: ' email earlier this morning....',
-  },
-  Tasks: {
-    lead: 'Eight tasks are due today. Three are quick calls you could finish',
-    tail: ' before your lunch break....',
-  },
-}
-
-const START_SECONDS = 13 * 60 + 29 // 13:29, sama seperti mockup
-
 export default function App() {
-  // Sesi voice chat
-  const [seconds, setSeconds] = useState(START_SECONDS)
-  const [muted, setMuted] = useState(false)
-  const [ended, setEnded] = useState(false)
-
   // Konten & pengaturan
   const [activeTab, setActiveTab] = useState('Everything')
   const [aiMode, setAiMode] = useState('brief')
@@ -57,12 +33,8 @@ export default function App() {
     toastTimer.current = setTimeout(() => setToast(null), 2400)
   }
 
-  // Timer berjalan selama sesi aktif
-  useEffect(() => {
-    if (ended) return
-    const t = setInterval(() => setSeconds((s) => s + 1), 1000)
-    return () => clearInterval(t)
-  }, [ended])
+  // Voice chat sungguhan (mic + pengenalan suara + suara balasan)
+  const voice = useVoiceChat({ tab: activeTab, aiMode, askFirst, onToast: showToast })
 
   // Tutup drawer dengan tombol Esc
   useEffect(() => {
@@ -134,18 +106,19 @@ export default function App() {
 
         <div className="content">
           <VoiceCard
-            seconds={seconds}
-            muted={muted}
-            ended={ended}
+            status={voice.status}
+            muted={voice.muted}
+            seconds={voice.seconds}
+            caption={voice.caption}
+            notes={voice.notes}
+            supported={voice.supported}
+            listenOnly={aiMode === 'listen'}
             liveCaptions={liveCaptions}
-            transcript={TRANSCRIPTS[activeTab]}
-            onToggleMute={() => setMuted((m) => !m)}
-            onEnd={() => setEnded(true)}
-            onRestart={() => {
-              setSeconds(0)
-              setMuted(false)
-              setEnded(false)
-            }}
+            briefing={BRIEFINGS[activeTab]}
+            getLevel={voice.getLevel}
+            onStart={voice.start}
+            onToggleMute={voice.toggleMute}
+            onEnd={voice.end}
             onInvite={() => showToast('Inviting teammates is outside this demo')}
           />
 

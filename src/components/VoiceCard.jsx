@@ -1,4 +1,5 @@
 import { MicIcon, MicOffIcon, CloseIcon, UserPlusIcon } from '../icons.jsx'
+import Orb from './Orb.jsx'
 
 function formatTime(total) {
   const m = Math.floor(total / 60)
@@ -6,66 +7,106 @@ function formatTime(total) {
   return `${m}:${String(s).padStart(2, '0')}`
 }
 
+const WHO_LABEL = { user: 'You', ai: 'Assistant', note: 'Note saved' }
+
 export default function VoiceCard({
-  seconds,
+  status,
   muted,
-  ended,
+  seconds,
+  caption,
+  notes,
+  supported,
+  listenOnly,
   liveCaptions,
-  transcript,
+  briefing,
+  getLevel,
+  onStart,
   onToggleMute,
   onEnd,
-  onRestart,
   onInvite,
 }) {
-  const status = ended ? 'Call ended' : muted ? 'Muted' : 'Speaking...'
+  const active = status === 'connecting' || status === 'listening' || status === 'thinking' || status === 'speaking'
+  const ended = status === 'ended'
+  const idle = status === 'idle'
+
+  const orbState = ended
+    ? 'ended'
+    : muted && active && status === 'listening'
+      ? 'muted'
+      : status === 'connecting'
+        ? 'thinking'
+        : status
+
+  let label
+  if (ended) label = 'Call ended'
+  else if (idle) label = supported ? 'Tap the mic to start' : 'Voice not supported in this browser'
+  else if (status === 'connecting') label = 'Connecting...'
+  else if (status === 'speaking') label = 'Speaking...'
+  else if (status === 'thinking') label = 'Thinking...'
+  else if (muted) label = 'Muted'
+  else label = listenOnly ? 'Listening, taking notes...' : 'Listening...'
+
+  let body
+  if (ended) {
+    body = (
+      <p className="voicecard__captions voicecard__captions--off">
+        {notes > 0
+          ? `Voice chat ended. ${notes} ${notes === 1 ? 'note was' : 'notes were'} captured in this demo.`
+          : 'Voice chat ended. Tap the mic to start a new one.'}
+      </p>
+    )
+  } else if (!liveCaptions) {
+    body = (
+      <p className="voicecard__captions voicecard__captions--off">
+        Live captions are off. Turn them on in Quick Settings to read along.
+      </p>
+    )
+  } else if (idle) {
+    body = (
+      <p className="voicecard__captions" key={briefing.lead}>
+        <span className="t-lead">{briefing.lead}</span>
+        <span className="t-tail">{briefing.tail}</span>
+      </p>
+    )
+  } else if (caption) {
+    body = (
+      <div className="voicecard__captionwrap" key={caption.who}>
+        <div className="voicecard__who">{WHO_LABEL[caption.who]}</div>
+        <p className="voicecard__captions voicecard__captions--live">
+          <span className="t-lead">{caption.lead}</span>
+          <span className="t-tail">{caption.tail}</span>
+        </p>
+      </div>
+    )
+  } else {
+    body = (
+      <p className="voicecard__captions voicecard__captions--off">
+        {muted ? 'Mic is muted. Tap the mic to talk.' : "Go ahead, I'm listening."}
+      </p>
+    )
+  }
 
   return (
     <section className="voicecard" aria-label="Voice chat session">
       <div className="voicecard__top">
-        <div className={`orb ${ended ? 'is-ended' : muted ? 'is-muted' : 'is-speaking'}`}>
-          <div className="orb__blobs">
-            <span className="orb__blob orb__blob--violet" />
-            <span className="orb__blob orb__blob--pink" />
-            <span className="orb__blob orb__blob--blue" />
-            <span className="orb__blob orb__blob--veil" />
-          </div>
-          <div className="orb__glass" />
-        </div>
+        <Orb state={orbState} getLevel={getLevel} />
         <div className="voicecard__timer">{formatTime(seconds)}</div>
       </div>
 
-      <div className="voicecard__middle">
-        {ended ? (
-          <p className="voicecard__captions voicecard__captions--off">
-            Voice chat ended. A summary note was saved to your activity.
-          </p>
-        ) : liveCaptions ? (
-          <p className="voicecard__captions" key={transcript.lead}>
-            <span className="t-lead">{transcript.lead}</span>
-            <span className="t-tail">{transcript.tail}</span>
-          </p>
-        ) : (
-          <p className="voicecard__captions voicecard__captions--off">
-            Live captions are off. Turn them on in Quick Settings to read along.
-          </p>
-        )}
+      <div className="voicecard__middle" aria-live="polite">
+        {body}
       </div>
 
       <div className="voicecard__bottom">
-        <div className={`voicecard__status ${ended ? 'is-ended' : ''}`}>{status}</div>
+        <div className={`voicecard__status ${ended || idle ? 'is-ended' : ''}`}>{label}</div>
 
-        {ended ? (
-          <div className="controls controls--center">
-            <button className="ctl ctl--primary" onClick={onRestart} aria-label="Start a new voice chat">
-              <MicIcon size={22} />
-            </button>
-          </div>
-        ) : (
-          <div className="controls">
-            <button className="ctl" onClick={onInvite} aria-label="Add someone to the call">
-              <UserPlusIcon size={20} />
-            </button>
-            <div className={`mic-wrap ${muted ? 'is-muted' : ''}`}>
+        <div className="controls">
+          <button className="ctl" onClick={onInvite} aria-label="Add someone to the call">
+            <UserPlusIcon size={20} />
+          </button>
+
+          <div className={`mic-wrap ${active && muted ? 'is-muted' : ''}`}>
+            {active ? (
               <button
                 className="ctl ctl--mic"
                 onClick={onToggleMute}
@@ -74,12 +115,21 @@ export default function VoiceCard({
               >
                 {muted ? <MicIcon size={22} /> : <MicOffIcon size={22} />}
               </button>
-            </div>
-            <button className="ctl" onClick={onEnd} aria-label="End voice chat">
-              <CloseIcon size={20} />
-            </button>
+            ) : (
+              <button
+                className="ctl ctl--mic ctl--start"
+                onClick={onStart}
+                aria-label={ended ? 'Start a new voice chat' : 'Start voice chat'}
+              >
+                <MicIcon size={22} />
+              </button>
+            )}
           </div>
-        )}
+
+          <button className="ctl" onClick={onEnd} disabled={!active} aria-label="End voice chat">
+            <CloseIcon size={20} />
+          </button>
+        </div>
       </div>
     </section>
   )
