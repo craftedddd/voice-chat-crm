@@ -1,5 +1,6 @@
 import { MicIcon, MicOffIcon, CloseIcon, UserPlusIcon } from '../icons.jsx'
 import Orb from './Orb.jsx'
+import SessionSummary from './SessionSummary.jsx'
 
 function formatTime(total) {
   const m = Math.floor(total / 60)
@@ -15,6 +16,7 @@ export default function VoiceCard({
   seconds,
   caption,
   notes,
+  summary,
   supported,
   listenOnly,
   liveCaptions,
@@ -24,10 +26,20 @@ export default function VoiceCard({
   onToggleMute,
   onEnd,
   onInvite,
+  onToast,
 }) {
   const active = status === 'connecting' || status === 'listening' || status === 'thinking' || status === 'speaking'
   const ended = status === 'ended'
   const idle = status === 'idle'
+
+  // Sesi selesai: kartu berubah menjadi ringkasan sesi
+  if (ended && summary) {
+    return (
+      <section className="voicecard voicecard--summary" aria-label="Voice chat summary">
+        <SessionSummary key={summary.id} summary={summary} onRestart={onStart} onToast={onToast} />
+      </section>
+    )
+  }
 
   const orbState = ended
     ? 'ended'

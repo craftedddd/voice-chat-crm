@@ -1,8 +1,22 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { getSR, isVoiceSupported, primeSpeech, speak, createMicMeter } from './speech.js'
-import { respond, openingFor } from './brain.js'
+import { respond, openingFor, topicsIn, nextUp } from './brain.js'
 
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v))
+
+// Toast aksi demo -> item "Actions taken" di ringkasan sesi
+function toAction(toast) {
+  const label = toast.replace(/^Demo action:\s*/i, '')
+  const t = label.toLowerCase()
+  const kind = /\bsent\b/.test(t)
+    ? 'send'
+    : /reminder/.test(t)
+      ? 'remind'
+      : /booked|blocked/.test(t)
+        ? 'calendar'
+        : 'draft'
+  return { label: label.charAt(0).toUpperCase() + label.slice(1), kind }
+}
 
 /**
  * Mesin status voice chat:
@@ -15,10 +29,11 @@ export default function useVoiceChat({ tab, aiMode, askFirst, onToast }) {
   const [seconds, setSeconds] = useState(0)
   const [caption, setCaption] = useState(null) // { who, lead, tail }
   const [notes, setNotes] = useState(0)
+  const [summary, setSummary] = useState(null) // ringkasan sesi terakhir
   const [supported] = useState(isVoiceSupported)
 
   const live = useRef({})
-  live.current = { ...live.current, tab, aiMode, askFirst, onToast, muted }
+  live.current = { ...live.current, tab, aiMode, askFirst, onToast, muted, seconds }
 
   const r = useRef({
     active: false,
@@ -31,7 +46,17 @@ export default function useVoiceChat({ tab, aiMode, askFirst, onToast }) {
     bump: 0,
     pulse: 0,
     restarts: [],
+    // catatan sesi untuk ringkasan
+    log: [], // { who: 'user' | 'ai' | 'note', text, t }
+    actions: [], // { label, kind }
+    startedAt: 0,
+    mode: 'brief',
+    tabAtStart: 'Everything',
   })
+
+  const record = (who, text) => {
+    if (text) r.current.log.push({ who, text, t: live.current.seconds || 0 })
+  }
 
   const go = (s) => {
     r.current.status = s
@@ -51,8 +76,28 @@ export default function useVoiceChat({ tab, aiMode, askFirst, onToast }) {
     }
   }
 
+  function buildSummary() {
+    const s = r.current
+    const all = s.log.map((x) => x.text).join(' ')
+    return {
+      id: Date.now(),
+      startedAt: s.startedAt,
+      endedAt: Date.now(),
+      duration: live.current.seconds || 0,
+      mode: s.mode,
+      tab: s.tabAtStart,
+      transcript: [...s.log],
+      actions: [...s.actions],
+      notes: s.log.filter((x) => x.who === 'note').map((x) => x.text),
+      exchanges: s.log.filter((x) => x.who === 'user' || x.who === 'note').length,
+      topics: topicsIn(all),
+      nextUp: s.mode === 'listen' ? null : nextUp(s.ctx.done),
+    }
+  }
+
   function endSession(finalStatus = 'ended') {
     const s = r.current
+    if (finalStatus === 'ended' && s.startedAt) setSummary(buildSummary())
     s.active = false
     clearTimeout(s.thinkTimer)
     s.cancelSpeech?.()
@@ -68,6 +113,7 @@ export default function useVoiceChat({ tab, aiMode, askFirst, onToast }) {
     const s = r.current
     stopRecognition()
     go('speaking')
+    record('ai', text)
     setCaption({ who: 'ai', lead: '', tail: text })
     s.cancelSpeech = speak(text, {
       onProgress: (n, boundary) => {
@@ -93,6 +139,7 @@ export default function useVoiceChat({ tab, aiMode, askFirst, onToast }) {
 
     // Listen only: AI diam dan hanya mencatat
     if (live.current.aiMode === 'listen') {
+      record('note', text)
       setNotes((n) => n + 1)
       setCaption({ who: 'note', lead: text, tail: '' })
       setTimeout(beginListening, 250)
@@ -100,6 +147,7 @@ export default function useVoiceChat({ tab, aiMode, askFirst, onToast }) {
     }
 
     go('thinking')
+    record('user', text)
     setCaption({ who: 'user', lead: text, tail: '' })
     s.thinkTimer = setTimeout(() => {
       if (!s.active) return
@@ -111,7 +159,10 @@ export default function useVoiceChat({ tab, aiMode, askFirst, onToast }) {
         ctx: s.ctx,
       })
       s.ctx = out.ctx
-      if (out.toast) toast(out.toast)
+      if (out.toast) {
+        toast(out.toast)
+        s.actions.push(toAction(out.toast))
+      }
       say(out.reply, !!out.endCall)
     }, 450 + Math.random() * 350)
   }
@@ -193,6 +244,10 @@ export default function useVoiceChat({ tab, aiMode, askFirst, onToast }) {
     setSeconds(0)
     setNotes(0)
     setCaption(null)
+    setSummary(null)
+    s.log = []
+    s.actions = []
+    s.startedAt = 0
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
@@ -213,9 +268,19 @@ export default function useVoiceChat({ tab, aiMode, askFirst, onToast }) {
       return
     }
 
+    // Sesi dibatalkan (tombol X) saat masih meminta izin mic
+    if (s.status !== 'connecting') {
+      s.meter?.close()
+      s.meter = null
+      return
+    }
+
     s.active = true
     s.ctx = { pending: null, done: [] }
     s.restarts = []
+    s.startedAt = Date.now()
+    s.mode = live.current.aiMode
+    s.tabAtStart = live.current.tab
     if (live.current.aiMode === 'listen') {
       go('listening')
       beginListening()
@@ -294,6 +359,7 @@ export default function useVoiceChat({ tab, aiMode, askFirst, onToast }) {
     seconds,
     caption,
     notes,
+    summary,
     supported,
     start,
     end: () => endSession(),

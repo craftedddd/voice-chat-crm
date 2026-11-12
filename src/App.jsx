@@ -111,6 +111,7 @@ export default function App() {
             seconds={voice.seconds}
             caption={voice.caption}
             notes={voice.notes}
+            summary={voice.summary}
             supported={voice.supported}
             listenOnly={aiMode === 'listen'}
             liveCaptions={liveCaptions}
@@ -120,6 +121,7 @@ export default function App() {
             onToggleMute={voice.toggleMute}
             onEnd={voice.end}
             onInvite={() => showToast('Inviting teammates is outside this demo')}
+            onToast={showToast}
           />
 
           <aside className="sidecol">

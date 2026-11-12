@@ -342,3 +342,26 @@ export function respond({ text, mode, askFirst, tab, ctx: prev }) {
     ctx: { ...ctx, pending: 'offer_suggest' },
   }
 }
+
+// ---------------------------------------------------------------------------
+// Ringkasan sesi: topik yang disebut dan rekomendasi berikutnya
+// ---------------------------------------------------------------------------
+const ENTITIES = [
+  { label: 'Acme Co.', re: /\bacme\b/i },
+  { label: 'Globex', re: /\bglobex\b/i },
+  { label: 'Initech', re: /\binitech\b/i },
+  { label: 'Northwind', re: /\bnorthwind\b/i },
+  { label: 'Webinar contacts', re: /\bwebinar\b/i },
+  { label: "Today's tasks", re: /\b(tasks?|quick calls)\b/i },
+]
+
+/** Daftar topik (entitas CRM) yang muncul di teks percakapan. */
+export function topicsIn(text) {
+  return ENTITIES.filter((e) => e.re.test(text)).map((e) => e.label)
+}
+
+/** Rekomendasi pertama yang belum ditangani di sesi ini. */
+export function nextUp(done = []) {
+  const item = QUEUE.find((q) => !done.includes(q.key))
+  return item ? item.lead : null
+}

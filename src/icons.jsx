@@ -226,3 +226,59 @@ export const AvatarIcon = (p) => (
     <path d="M5 20c1-3.6 4-5.2 7-5.2s6 1.6 7 5.2" />
   </Svg>
 )
+
+// ---- Ikon untuk ringkasan sesi ----
+export const SendIcon = (p) => (
+  <Svg {...p}>
+    <path d="M21 3 10.5 13.5" />
+    <path d="m21 3-6.5 18-4-7.5L3 9.5 21 3Z" />
+  </Svg>
+)
+
+export const BellIcon = (p) => (
+  <Svg {...p}>
+    <path d="M6 9.5a6 6 0 0 1 12 0c0 5 2 6.5 2 6.5H4s2-1.5 2-6.5Z" />
+    <path d="M10.3 19.5a1.9 1.9 0 0 0 3.4 0" />
+  </Svg>
+)
+
+export const FileTextIcon = (p) => (
+  <Svg {...p}>
+    <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8l-5-5Z" />
+    <path d="M14 3v5h5M9 13h6M9 17h4" />
+  </Svg>
+)
+
+export const CopyIcon = (p) => (
+  <Svg {...p}>
+    <rect x="8.5" y="8.5" width="12" height="12" rx="2.5" />
+    <path d="M15.5 8.5V6a2.5 2.5 0 0 0-2.5-2.5H6A2.5 2.5 0 0 0 3.5 6v7A2.5 2.5 0 0 0 6 15.5h2.5" />
+  </Svg>
+)
+
+export const DownloadIcon = (p) => (
+  <Svg {...p}>
+    <path d="M12 3.5v11.5M7.5 10.5 12 15l4.5-4.5" />
+    <path d="M4 16.5v2A2.5 2.5 0 0 0 6.5 21h11a2.5 2.5 0 0 0 2.5-2.5v-2" />
+  </Svg>
+)
+
+export const ThumbUpIcon = (p) => (
+  <Svg {...p}>
+    <path d="M7.5 10.5v10H5a1.5 1.5 0 0 1-1.5-1.5v-7A1.5 1.5 0 0 1 5 10.5h2.5Z" />
+    <path d="M7.5 10.5 11 3.5a2.3 2.3 0 0 1 2.3 2.3v3.4h5.1a2 2 0 0 1 2 2.3l-1.2 7.3a2 2 0 0 1-2 1.7H7.5" />
+  </Svg>
+)
+
+export const ThumbDownIcon = (p) => (
+  <Svg {...p}>
+    <path d="M16.5 13.5v-10H19a1.5 1.5 0 0 1 1.5 1.5v7a1.5 1.5 0 0 1-1.5 1.5h-2.5Z" />
+    <path d="M16.5 13.5 13 20.5a2.3 2.3 0 0 1-2.3-2.3v-3.4H5.6a2 2 0 0 1-2-2.3l1.2-7.3a2 2 0 0 1 2-1.7h9.7" />
+  </Svg>
+)
+
+export const CheckIcon = (p) => (
+  <Svg {...p}>
+    <path d="m4.5 12.5 5 5 10-11" />
+  </Svg>
+)
