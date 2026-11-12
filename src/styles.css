@@ -1053,6 +1053,11 @@ button {
 .toast__action:hover { background: rgba(255, 255, 255, 0.09); color: #c9d1ff; }
 .toast__action:focus-visible { outline: 2px solid #aab6ff; outline-offset: 1px; }
 
+/* Desktop lebar: konten (kartu 640 + jarak 36 + Voice Settings 300) rata kiri
+   di dalam main, jadi toast dipusatkan ke kelompok itu, bukan ke seluruh main */
+@media (min-width: 1221px) {
+  .toaster { left: calc(var(--toast-left) + 40px + min(976px, 100vw - var(--toast-left) - 80px) / 2); }
+}
 @media (max-width: 960px) {
   .toaster { --toast-left: 64px; }
 }
