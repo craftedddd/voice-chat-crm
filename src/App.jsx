@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { IconRail, NavPanel } from './components/NavSide.jsx'
 import VoiceCard from './components/VoiceCard.jsx'
 import SettingsPanel from './components/SettingsPanel.jsx'
-import { PlusIcon, MenuIcon, WaveIcon, CloseIcon } from './icons.jsx'
+import { PlusIcon, MenuIcon, CloseIcon } from './icons.jsx'
 
 const TABS = ['Everything', 'Deals', 'Contacts', 'Tasks']
 
@@ -45,9 +45,8 @@ export default function App() {
   const [activeNav, setActiveNav] = useState('assistant')
   const [prefsOpen, setPrefsOpen] = useState(true)
 
-  // Drawer untuk layar kecil
+  // Drawer navigasi untuk layar kecil
   const [navOpen, setNavOpen] = useState(false)
-  const [settingsOpen, setSettingsOpen] = useState(false)
 
   // Toast kecil untuk aksi di luar cakupan demo
   const [toast, setToast] = useState(null)
@@ -68,10 +67,7 @@ export default function App() {
   // Tutup drawer dengan tombol Esc
   useEffect(() => {
     const onKey = (e) => {
-      if (e.key === 'Escape') {
-        setNavOpen(false)
-        setSettingsOpen(false)
-      }
+      if (e.key === 'Escape') setNavOpen(false)
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
@@ -113,19 +109,10 @@ export default function App() {
       <main className="main">
         <header className="main__header">
           <button className="iconbtn main__menu" aria-label="Open menu" onClick={() => setNavOpen(true)}>
-            <MenuIcon size={20} />
+            <MenuIcon size={18} />
           </button>
-          <div className="main__heading">
-            <h1>Voice Chat</h1>
-            <p>Ask questions, talk through a deal, or get help using the CRM</p>
-          </div>
-          <button
-            className="iconbtn main__settingsbtn"
-            aria-label="Open voice settings"
-            onClick={() => setSettingsOpen(true)}
-          >
-            <WaveIcon size={18} />
-          </button>
+          <h1 className="main__title">Voice Chat</h1>
+          <p className="main__subtitle">Ask questions, talk through a deal, or get help using the CRM</p>
         </header>
 
         <div className="tabs" role="tablist" aria-label="Voice chat context">
@@ -176,18 +163,6 @@ export default function App() {
               <CloseIcon size={18} />
             </button>
             <NavPanel {...navPanelProps} />
-          </div>
-        </div>
-      )}
-
-      {/* Drawer voice settings (layar kecil) */}
-      {settingsOpen && (
-        <div className="drawer-root" onClick={() => setSettingsOpen(false)}>
-          <div className="drawer drawer--right" onClick={(e) => e.stopPropagation()}>
-            <button className="drawer__close" aria-label="Close settings" onClick={() => setSettingsOpen(false)}>
-              <CloseIcon size={18} />
-            </button>
-            <SettingsPanel {...settingsProps} />
           </div>
         </div>
       )}
