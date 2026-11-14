@@ -112,7 +112,7 @@ export default function VoiceCard({
       <div className="voicecard__bottom">
         <div className={`voicecard__status ${ended || idle ? 'is-ended' : ''}`}>{label}</div>
 
-        <div className="controls">
+        <div className={`controls ${active ? 'is-active' : 'is-idle'}`}>
           <button className="ctl" onClick={onInvite} aria-label="Add someone to the call">
             <UserPlusIcon size={20} />
           </button>

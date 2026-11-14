@@ -960,11 +960,15 @@ button {
   height: 40px;
   max-width: calc(100vw - 32px);
   border-radius: 999px;
-  background: #1f2027;
-  color: #fff;
+  /* kaca buram (opsi C) */
+  background: rgba(255, 255, 255, 0.68);
+  -webkit-backdrop-filter: blur(16px) saturate(1.7);
+  backdrop-filter: blur(16px) saturate(1.7);
+  color: var(--ink);
+  border: 1px solid rgba(255, 255, 255, 0.92);
   box-shadow:
-    0 14px 32px -14px rgba(15, 16, 22, 0.55),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+    0 12px 30px -12px rgba(23, 24, 28, 0.24),
+    0 0 0 0.5px rgba(23, 24, 28, 0.07);
   overflow: hidden;
   display: grid;
   place-items: center;
@@ -1047,11 +1051,11 @@ button {
   border-radius: 999px;
   font-size: 13px;
   font-weight: 650;
-  color: #aab6ff;
+  color: var(--accent);
   transition: background 0.18s var(--ease), color 0.18s var(--ease);
 }
-.toast__action:hover { background: rgba(255, 255, 255, 0.09); color: #c9d1ff; }
-.toast__action:focus-visible { outline: 2px solid #aab6ff; outline-offset: 1px; }
+.toast__action:hover { background: rgba(75, 90, 228, 0.09); color: var(--accent-deep); }
+.toast__action:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 
 /* Desktop lebar: konten (kartu 640 + jarak 36 + Voice Settings 300) rata kiri
    di dalam main, jadi toast dipusatkan ke kelompok itu, bukan ke seluruh main */
@@ -1063,6 +1067,11 @@ button {
 }
 @media (max-width: 640px) {
   .toaster { --toast-left: 0px; top: calc(env(safe-area-inset-top, 0px) + 12px); }
+}
+
+/* Drawer terbuka: toast turun sedikit agar tidak menutupi tombol tutup drawer */
+@media (max-width: 960px) {
+  .drawer-root ~ .toaster { top: calc(env(safe-area-inset-top, 0px) + 56px); }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1473,8 +1482,202 @@ button {
   .summary__stats { gap: 8px; }
   .stat { padding: 10px 11px; }
   .stat dd { font-size: 17px; }
-  .summary__body { overflow: visible; padding-bottom: 4px; -webkit-mask-image: none; mask-image: none; }
   .summary__foot { justify-content: center; }
   .summary__actions { width: 100%; }
   .pbtn { margin-left: auto; }
+}
+
+/* ============================================================
+   BOTTOM SHEET (Voice Settings di mobile)
+   Panel putih menempel ke tepi kiri, kanan, dan bawah layar,
+   sudut atas membulat, naik dari bawah.
+============================================================ */
+.main__gear { display: none; }
+
+.sheet-root {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: flex-end;
+  background: rgba(23, 24, 28, 0.22);
+  animation: fade-in 0.22s var(--ease);
+}
+.sheet-root.is-closing { animation: scrim-out 0.24s ease forwards; }
+
+.sheet {
+  width: 100%;
+  max-height: calc(100dvh - 48px);
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  border-radius: 28px 28px 0 0;
+  box-shadow: 0 -6px 40px -14px rgba(23, 24, 28, 0.28);
+  overflow: hidden;
+  outline: none;
+  animation: sheet-up 0.44s cubic-bezier(0.22, 1, 0.36, 1);
+  transition: transform 0.3s var(--ease);
+}
+.sheet.is-dragging { transition: none; }
+.sheet-root.is-closing .sheet { animation: sheet-down 0.24s cubic-bezier(0.4, 0, 1, 1) forwards; }
+
+@keyframes sheet-up {
+  from { transform: translateY(105%); }
+  to { transform: translateY(0); }
+}
+@keyframes sheet-down {
+  from { transform: translateY(var(--drag, 0px)); }
+  to { transform: translateY(105%); }
+}
+@keyframes scrim-out {
+  to { background: rgba(23, 24, 28, 0); }
+}
+
+/* Area pegangan: bisa ditarik ke bawah untuk menutup */
+.sheet__grip {
+  flex: 0 0 auto;
+  display: flex;
+  justify-content: center;
+  padding-top: 6px;
+  touch-action: none;
+  cursor: grab;
+}
+.sheet__handle {
+  width: 72px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+}
+.sheet__handle::before {
+  content: '';
+  width: 40px;
+  height: 5px;
+  border-radius: 999px;
+  background: #dcdde3;
+}
+.sheet__handle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 8px; }
+
+.sheet__body {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  /* ruang ekstra untuk home bar iPhone, karena sheet menempel ke tepi bawah */
+  padding: 6px 20px calc(env(safe-area-inset-bottom, 0px) + 22px);
+}
+
+/* ============================================================
+   MOBILE (≤640): voice chat layar penuh
+   Tanpa kartu, latar gradien biru muda, header dengan judul
+   di tengah, Voice Settings pindah ke bottom sheet (ikon gear).
+============================================================ */
+@media (max-width: 640px) {
+  .app { height: 100dvh; min-height: 0; }
+
+  .main {
+    overflow: hidden;
+    padding: calc(env(safe-area-inset-top, 0px) + 18px) 16px 0;
+    background: linear-gradient(
+      180deg,
+      #ffffff 0%,
+      #f3fbff 15%,
+      #e0f3ff 41%,
+      #def2ff 53%,
+      #e6f4ff 76%,
+      #ebf5ff 100%
+    );
+  }
+
+  /* Header: menu kiri, judul tengah, gear kanan */
+  .main__header {
+    grid-template-columns: 40px 1fr 40px;
+    margin-bottom: 20px;
+  }
+  .main__menu,
+  .main__gear {
+    display: grid;
+    width: 40px;
+    height: 40px;
+    margin: 0;
+    border: 0;
+    background: transparent;
+    color: var(--ink);
+  }
+  .main__menu { justify-self: start; margin-left: -6px; }
+  .main__gear { justify-self: end; margin-right: -6px; }
+  .main__menu:hover,
+  .main__gear:hover { background: rgba(255, 255, 255, 0.7); }
+  .main__title {
+    text-align: center;
+    font-size: 20px;
+    font-weight: 650;
+  }
+  .main__subtitle { display: none; }
+
+  .tabs { margin-bottom: 0; gap: 2px; }
+  .tab { font-size: 13.5px; padding: 7px 12.5px; }
+
+  /* Voice Settings disembunyikan, dibuka lewat bottom sheet */
+  .sidecol { display: none; }
+  .content { flex: 1; min-height: 0; gap: 0; }
+
+  /* Kartu jadi area layar penuh */
+  .voicecard {
+    flex: 1 1 auto;
+    min-height: 0;
+    max-width: none;
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    padding: clamp(28px, 10dvh, 92px) 4px calc(env(safe-area-inset-bottom, 0px) + clamp(24px, 8dvh, 70px));
+  }
+
+  .voicecard__top { gap: 22px; }
+  .orb { width: clamp(120px, 20dvh, 164px); height: clamp(120px, 20dvh, 164px); }
+
+  .voicecard__middle {
+    min-height: 0;
+    overflow-y: auto;
+    padding-top: clamp(18px, 3.4dvh, 32px);
+    padding-bottom: 16px;
+    scrollbar-width: none;
+  }
+  .voicecard__middle::-webkit-scrollbar { display: none; }
+  .voicecard__captions {
+    max-width: 330px;
+    font-size: 22px;
+    line-height: 1.33;
+    letter-spacing: -0.015em;
+  }
+  .voicecard__captions--live { font-size: 20px; }
+  .voicecard__captions--off { font-size: 15px; line-height: 1.5; }
+
+  .voicecard__bottom { gap: clamp(26px, 4.5dvh, 40px); }
+  .voicecard__status,
+  .voicecard__status.is-ended {
+    font-size: 14px;
+    font-weight: 600;
+    color: #7f8a95;
+  }
+
+  /* Kontrol: tombol samping putih, hanya mic saat belum mulai */
+  .controls { max-width: 320px; }
+  .ctl:not(.ctl--mic) {
+    background: #fff;
+    box-shadow: 0 8px 22px -12px rgba(48, 84, 160, 0.35);
+    transition: background 0.18s var(--ease), transform 0.25s var(--ease), opacity 0.25s var(--ease), visibility 0.25s;
+  }
+  .ctl:not(.ctl--mic):hover { background: #f6f9ff; }
+  .controls.is-idle .ctl:not(.ctl--mic) {
+    opacity: 0;
+    visibility: hidden;
+    transform: scale(0.8);
+  }
+
+  /* Ringkasan sesi: ikut layar penuh, isi bisa di-scroll */
+  .voicecard--summary {
+    padding: 20px 2px calc(env(safe-area-inset-bottom, 0px) + 16px);
+  }
+  .stat { background: rgba(255, 255, 255, 0.72); border-color: rgba(255, 255, 255, 0.9); }
+  .stabs { background: rgba(255, 255, 255, 0.6); }
+  .summary__foot { border-top-color: rgba(23, 24, 28, 0.07); }
 }

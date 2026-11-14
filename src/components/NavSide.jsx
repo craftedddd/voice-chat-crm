@@ -131,7 +131,7 @@ export function NavPanel({
           <button
             key={id}
             className={`navlist__item ${activeNav === id ? 'is-active' : ''}`}
-            onClick={() => setActiveNav(id)}
+            onClick={() => (id === 'assistant' ? setActiveNav(id) : onToast(`${label} is coming soon`))}
           >
             <Icon size={16} />
             <span>{label}</span>

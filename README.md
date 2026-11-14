@@ -25,7 +25,7 @@ Contoh yang bisa diucapkan: "Which deals are waiting on a reply?", "Tell me abou
 - Tab konteks (Everything / Deals / Contacts / Tasks) mengganti briefing pembuka
 - Toggle Live Captions (menyembunyikan caption) dan Ask Me First
 - Search di menu kiri memfilter item navigasi
-- Responsif: Voice Settings ditumpuk di bawah kartu pada layar kecil, sidebar jadi drawer
+- Responsif: di tablet Voice Settings ditumpuk di bawah kartu dan sidebar jadi drawer. Di mobile voice chat tampil layar penuh, Voice Settings dibuka lewat ikon gear sebagai bottom sheet
 
 ## Catatan teknis voice
 
@@ -82,4 +82,7 @@ src/
     VoiceCard.jsx          # kartu sesi voice chat (orb, caption, kontrol)
     Orb.jsx                # orb kaca yang mengikuti level suara
     SettingsPanel.jsx      # panel Voice Settings (AI Mode + Quick Settings)
+    SessionSummary.jsx     # ringkasan sesi setelah voice chat selesai
+    Toast.jsx              # toast beranimasi (satu pill, dengan Undo)
+    BottomSheet.jsx        # bottom sheet untuk Voice Settings di mobile
 ```

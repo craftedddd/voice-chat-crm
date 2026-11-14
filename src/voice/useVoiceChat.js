@@ -3,6 +3,7 @@ import { getSR, isVoiceSupported, primeSpeech, speak, createMicMeter } from './s
 import { respond, openingFor, topicsIn, nextUp } from './brain.js'
 
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v))
+const formatClock = (t) => `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`
 
 // Toast aksi demo -> item "Actions taken" di ringkasan sesi
 function toAction(toast) {
@@ -126,9 +127,27 @@ export default function useVoiceChat({ tab, aiMode, askFirst, onToast }) {
     }
   }
 
-  function endSession(finalStatus = 'ended') {
+  /** Toast penutup: "Voice chat ended" (tombol X) atau "Talk soon" (user pamit). */
+  function endedToast(reason) {
     const s = r.current
-    if (finalStatus === 'ended' && s.startedAt) setSummary(buildSummary())
+    const notes = s.log.filter((x) => x.who === 'note').length
+    const n = s.mode === 'listen' ? notes : s.actions.length
+    const unit = s.mode === 'listen' ? 'note' : 'action'
+    const detail = n > 0 ? `${n} ${unit}${n === 1 ? '' : 's'} saved` : formatClock(live.current.seconds || 0)
+    toast({
+      kind: n > 0 ? 'success' : 'ended',
+      text: `${reason === 'goodbye' ? 'Talk soon' : 'Voice chat ended'} · ${detail}`,
+      key: `ended:${Date.now()}`,
+      defer: true,
+    })
+  }
+
+  function endSession(finalStatus = 'ended', reason = 'user') {
+    const s = r.current
+    if (finalStatus === 'ended' && s.startedAt) {
+      setSummary(buildSummary())
+      endedToast(reason)
+    }
     s.active = false
     clearTimeout(s.thinkTimer)
     s.cancelSpeech?.()
@@ -155,7 +174,7 @@ export default function useVoiceChat({ tab, aiMode, askFirst, onToast }) {
         s.cancelSpeech = null
         if (!s.active) return
         if (thenEnd) {
-          endSession()
+          endSession('ended', 'goodbye')
           return
         }
         go('listening')

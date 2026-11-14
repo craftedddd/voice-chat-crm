@@ -6,11 +6,12 @@ import { forwardRef, useEffect, useLayoutEffect, useRef, useState } from 'react'
  * (lebar menyesuaikan, teks lama blur keluar) -> menyusut jadi titik lalu naik.
  *
  * show(input) menerima string atau objek:
- *   { text, kind: 'success' | 'info' | 'error' | 'undo', action?: { label, onClick, after? }, duration?, key? }
+ *   { text, kind: 'success' | 'info' | 'error' | 'undo' | 'ended', action?: { label, onClick, after? }, duration?, key?, defer? }
  * action.after (opsional) adalah isi pengganti setelah tombol ditekan, misalnya "Email unsent".
+ * defer: true berarti menunggu toast yang punya tombol (misalnya Undo) selesai dulu, agar tidak tertimpa.
  */
 
-const DURATION = { info: 2600, success: 2800, undo: 2400, error: 6000 }
+const DURATION = { info: 2600, success: 3200, undo: 2400, error: 6000, ended: 3200 }
 const ACTION_DURATION = 6000
 const T_DOT = 280 // titik tiba sebelum mekar
 const T_CLOSE = 360 // pill menyusut jadi titik
@@ -39,6 +40,7 @@ function createToaster(setView) {
   let deadline = 0
   let remaining = 0
   let paused = false
+  let queued = null // toast yang menunggu toast bertombol selesai
 
   const reduce = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches
   const emit = () => setView({ item, phase, pulse })
@@ -67,11 +69,21 @@ function createToaster(setView) {
         item = null
         phase = 'gone'
         emit()
+        if (queued) {
+          const next = queued
+          queued = null
+          show(next)
+        }
       }, T_LEAVE)
     }, reduce() ? 0 : T_CLOSE)
   }
 
   function show(input) {
+    // Jangan timpa toast yang masih menawarkan aksi (Undo/Retry)
+    if (typeof input === 'object' && input.defer && item && visible() && item.action) {
+      queued = input
+      return
+    }
     const next = normalize(input)
 
     // Pesan yang sama saat masih tampil: cukup berdenyut dan ulang timer
@@ -135,6 +147,7 @@ function createToaster(setView) {
   }
 
   function destroy() {
+    queued = null
     clearTimeout(hideTimer)
     clearTimeout(phaseTimer)
   }
@@ -165,22 +178,29 @@ function ToastIcon({ kind }) {
   if (kind === 'error')
     return (
       <svg {...common} className="toast__icon">
-        <circle cx="9" cy="9" r="9" fill="#ff6a5c" />
+        <circle cx="9" cy="9" r="9" fill="#ff5a4c" />
         <path d="M9 4.9v4.8" {...stroke} />
         <circle cx="9" cy="12.7" r="1.05" fill="#fff" />
+      </svg>
+    )
+  if (kind === 'ended')
+    return (
+      <svg {...common} className="toast__icon">
+        <circle cx="9" cy="9" r="9" fill="#8c8f9b" />
+        <rect x="6.3" y="6.3" width="5.4" height="5.4" rx="1.2" fill="#fff" />
       </svg>
     )
   if (kind === 'undo')
     return (
       <svg {...common} className="toast__icon">
-        <circle cx="9" cy="9" r="9" fill="rgba(255,255,255,0.18)" />
+        <circle cx="9" cy="9" r="9" fill="#8c8f9b" />
         <path d="M6.6 6.2 4.8 8l1.8 1.8" {...stroke} />
         <path d="M5 8h5.2a2.6 2.6 0 0 1 0 5.2H8.4" {...stroke} />
       </svg>
     )
   return (
     <svg {...common} className="toast__icon">
-      <circle cx="9" cy="9" r="9" fill="#6878f0" />
+      <circle cx="9" cy="9" r="9" fill="#4b5ae4" />
       <circle cx="9" cy="5.6" r="1.05" fill="#fff" />
       <path d="M9 8.2v4.9" {...stroke} />
     </svg>

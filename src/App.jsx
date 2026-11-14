@@ -1,11 +1,12 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { IconRail, NavPanel } from './components/NavSide.jsx'
 import VoiceCard from './components/VoiceCard.jsx'
 import SettingsPanel from './components/SettingsPanel.jsx'
-import { PlusIcon, MenuIcon, CloseIcon } from './icons.jsx'
+import { PlusIcon, MenuIcon, CloseIcon, CogIcon } from './icons.jsx'
 import useVoiceChat from './voice/useVoiceChat.js'
 import { BRIEFINGS } from './voice/brain.js'
 import { Toaster, useToaster } from './components/Toast.jsx'
+import BottomSheet from './components/BottomSheet.jsx'
 
 const TABS = ['Everything', 'Deals', 'Contacts', 'Tasks']
 
@@ -24,6 +25,16 @@ export default function App() {
 
   // Drawer navigasi untuk layar kecil
   const [navOpen, setNavOpen] = useState(false)
+
+  // Bottom sheet Voice Settings (hanya mobile, dibuka lewat ikon gear)
+  const [sheetOpen, setSheetOpen] = useState(false)
+  const closeSheet = useCallback(() => setSheetOpen(false), [])
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 641px)')
+    const onChange = () => mq.matches && setSheetOpen(false)
+    mq.addEventListener('change', onChange)
+    return () => mq.removeEventListener('change', onChange)
+  }, [])
 
   // Toast: satu pill beranimasi di atas area konten
   const toaster = useToaster()
@@ -80,6 +91,15 @@ export default function App() {
             <MenuIcon size={18} />
           </button>
           <h1 className="main__title">Voice Chat</h1>
+          <button
+            className="iconbtn main__gear"
+            aria-label="Voice settings"
+            aria-haspopup="dialog"
+            aria-expanded={sheetOpen}
+            onClick={() => setSheetOpen(true)}
+          >
+            <CogIcon size={21} />
+          </button>
           <p className="main__subtitle">Ask questions, talk through a deal, or get help using the CRM</p>
         </header>
 
@@ -137,6 +157,11 @@ export default function App() {
           </div>
         </div>
       )}
+
+      {/* Voice Settings sebagai bottom sheet (mobile) */}
+      <BottomSheet open={sheetOpen} onClose={closeSheet} label="Voice settings">
+        <SettingsPanel {...settingsProps} />
+      </BottomSheet>
 
       <Toaster {...toaster} />
     </div>
