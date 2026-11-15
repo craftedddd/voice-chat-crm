@@ -167,41 +167,41 @@ export function useToaster() {
 
 function ToastIcon({ kind }) {
   const common = { width: 18, height: 18, viewBox: '0 0 18 18', 'aria-hidden': true }
-  const stroke = { fill: 'none', stroke: '#fff', strokeWidth: 1.8, strokeLinecap: 'round', strokeLinejoin: 'round' }
+  const stroke = { fill: 'none', strokeWidth: 1.8, strokeLinecap: 'round', strokeLinejoin: 'round', style: { stroke: 'var(--on-accent)' } }
   if (kind === 'success')
     return (
       <svg {...common} className="toast__icon">
-        <circle cx="9" cy="9" r="9" fill="#34c759" />
+        <circle cx="9" cy="9" r="9" style={{ fill: 'var(--success)' }} />
         <path d="m5.4 9.3 2.4 2.4 4.8-5" {...stroke} />
       </svg>
     )
   if (kind === 'error')
     return (
       <svg {...common} className="toast__icon">
-        <circle cx="9" cy="9" r="9" fill="#ff5a4c" />
+        <circle cx="9" cy="9" r="9" style={{ fill: 'var(--danger)' }} />
         <path d="M9 4.9v4.8" {...stroke} />
-        <circle cx="9" cy="12.7" r="1.05" fill="#fff" />
+        <circle cx="9" cy="12.7" r="1.05" style={{ fill: 'var(--on-accent)' }} />
       </svg>
     )
   if (kind === 'ended')
     return (
       <svg {...common} className="toast__icon">
-        <circle cx="9" cy="9" r="9" fill="#8c8f9b" />
-        <rect x="6.3" y="6.3" width="5.4" height="5.4" rx="1.2" fill="#fff" />
+        <circle cx="9" cy="9" r="9" style={{ fill: 'var(--text-muted)' }} />
+        <rect x="6.3" y="6.3" width="5.4" height="5.4" rx="1.2" style={{ fill: 'var(--on-accent)' }} />
       </svg>
     )
   if (kind === 'undo')
     return (
       <svg {...common} className="toast__icon">
-        <circle cx="9" cy="9" r="9" fill="#8c8f9b" />
+        <circle cx="9" cy="9" r="9" style={{ fill: 'var(--text-muted)' }} />
         <path d="M6.6 6.2 4.8 8l1.8 1.8" {...stroke} />
         <path d="M5 8h5.2a2.6 2.6 0 0 1 0 5.2H8.4" {...stroke} />
       </svg>
     )
   return (
     <svg {...common} className="toast__icon">
-      <circle cx="9" cy="9" r="9" fill="#4b5ae4" />
-      <circle cx="9" cy="5.6" r="1.05" fill="#fff" />
+      <circle cx="9" cy="9" r="9" style={{ fill: 'var(--info)' }} />
+      <circle cx="9" cy="5.6" r="1.05" style={{ fill: 'var(--on-accent)' }} />
       <path d="M9 8.2v4.9" {...stroke} />
     </svg>
   )
