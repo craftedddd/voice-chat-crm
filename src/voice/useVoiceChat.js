@@ -1,8 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { getSR, isVoiceSupported, primeSpeech, speak, createMicMeter } from './speech.js'
-import { respond, openingFor, topicsIn, nextUp } from './brain.js'
+import { respond, openingFor, topicsIn, nextUp, cardFor } from './brain.js'
 
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v))
+// Tempo langkah kerja Live actions (ms): cukup lambat untuk terbaca, tidak bikin menunggu
+const STEP_MS = () => 520 + Math.random() * 380
+const SETTLE_MS = 260 // jeda setelah aksi selesai sebelum assistant bicara
 const formatClock = (t) => `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`
 
 // Toast aksi demo -> item "Actions taken" di ringkasan sesi
@@ -34,7 +37,7 @@ const undoneText = (a) => (a.kind === 'draft' && /drafts/i.test(a.label) ? 'Draf
  * idle -> connecting -> listening <-> thinking -> speaking -> listening ... -> ended
  * Semua nilai yang dibaca callback async diambil dari ref agar tidak basi.
  */
-export default function useVoiceChat({ tab, aiMode, askFirst, onToast }) {
+export default function useVoiceChat({ tab, aiMode, askFirst, onToast, isFeedVisible }) {
   const [status, setStatus] = useState('idle')
   const [muted, setMuted] = useState(false)
   const [seconds, setSeconds] = useState(0)
@@ -42,9 +45,13 @@ export default function useVoiceChat({ tab, aiMode, askFirst, onToast }) {
   const [notes, setNotes] = useState(0)
   const [summary, setSummary] = useState(null) // ringkasan sesi terakhir
   const [supported] = useState(isVoiceSupported)
+  // Live actions: { id, kind, status: running|done|undone|note, title, doneTitle, detail, steps, step, t, doneAt }
+  const [feed, setFeed] = useState([])
+  const [waiting, setWaiting] = useState(null) // kartu "Needs your OK"
+  const [working, setWorking] = useState(false)
 
   const live = useRef({})
-  live.current = { ...live.current, tab, aiMode, askFirst, onToast, muted, seconds }
+  live.current = { ...live.current, tab, aiMode, askFirst, onToast, isFeedVisible, muted, seconds }
 
   const r = useRef({
     active: false,
@@ -61,6 +68,9 @@ export default function useVoiceChat({ tab, aiMode, askFirst, onToast }) {
     log: [], // { who: 'user' | 'ai' | 'note', text, t }
     actions: [], // { id, label, kind, mark, followUp }
     actionSeq: 0,
+    noteSeq: 0,
+    workTimers: [],
+    finishWork: null, // menuntaskan aksi yang sedang berjalan (dipakai saat sesi diakhiri)
     netErrors: 0,
     startedAt: 0,
     mode: 'brief',
@@ -76,6 +86,12 @@ export default function useVoiceChat({ tab, aiMode, askFirst, onToast }) {
     setStatus(s)
   }
   const toast = (msg) => live.current.onToast?.(msg)
+  const patchItem = (id, patch) => setFeed((f) => f.map((x) => (x.id === id ? { ...x, ...patch } : x)))
+  const feedShown = () => !!live.current.isFeedVisible?.()
+  const showWaiting = () => {
+    const card = cardFor(r.current.ctx.pending)
+    setWaiting((w) => (card ? (w && w.step === card.step ? w : { ...card, t: live.current.seconds || 0 }) : null))
+  }
 
   const micBlockedToast = () => ({
     kind: 'error',
@@ -103,9 +119,45 @@ export default function useVoiceChat({ tab, aiMode, askFirst, onToast }) {
     if (!a) return null
     s.actions = s.actions.filter((x) => x.id !== id)
     if (a.mark) s.ctx = { ...s.ctx, done: s.ctx.done.filter((m) => m !== a.mark) }
-    if (a.followUp && s.ctx.pending === a.followUp) s.ctx = { ...s.ctx, pending: null }
+    if (a.followUp && s.ctx.pending === a.followUp) {
+      s.ctx = { ...s.ctx, pending: null }
+      setWaiting(null)
+    }
     setSummary((sum) => (sum ? { ...sum, actions: sum.actions.filter((x) => x.id !== id) } : sum))
+    patchItem(id, { status: 'undone' })
     return a
+  }
+
+  /** Undo dari feed: tanpa toast kalau feed sedang terlihat. */
+  function undoFromFeed(id) {
+    const a = undoAction(id)
+    if (a && !feedShown()) toast({ kind: 'undo', text: undoneText(a) })
+  }
+
+  /** Jalankan langkah kerja satu per satu, lalu tandai selesai. */
+  function runWork(item, onDone) {
+    const s = r.current
+    let i = 0
+    const finish = () => {
+      s.workTimers.forEach(clearTimeout)
+      s.workTimers = []
+      s.finishWork = null
+      setWorking(false)
+      patchItem(item.id, { status: 'done', step: item.steps.length, doneAt: Date.now() })
+    }
+    s.finishWork = finish
+    setWorking(true)
+    const tick = () => {
+      i += 1
+      if (i < item.steps.length) {
+        patchItem(item.id, { step: i })
+        s.workTimers.push(setTimeout(tick, STEP_MS()))
+      } else {
+        finish()
+        s.workTimers.push(setTimeout(() => s.active && onDone(), SETTLE_MS))
+      }
+    }
+    s.workTimers.push(setTimeout(tick, STEP_MS()))
   }
 
   function buildSummary() {
@@ -144,6 +196,10 @@ export default function useVoiceChat({ tab, aiMode, askFirst, onToast }) {
 
   function endSession(finalStatus = 'ended', reason = 'user') {
     const s = r.current
+    s.finishWork?.()
+    s.workTimers.forEach(clearTimeout)
+    s.workTimers = []
+    setWaiting(null)
     if (finalStatus === 'ended' && s.startedAt) {
       setSummary(buildSummary())
       endedToast(reason)
@@ -165,6 +221,7 @@ export default function useVoiceChat({ tab, aiMode, askFirst, onToast }) {
     go('speaking')
     record('ai', text)
     setCaption({ who: 'ai', lead: '', tail: text })
+    showWaiting()
     s.cancelSpeech = speak(text, {
       onProgress: (n, boundary) => {
         if (boundary) s.pulse = 1
@@ -192,10 +249,13 @@ export default function useVoiceChat({ tab, aiMode, askFirst, onToast }) {
       record('note', text)
       setNotes((n) => n + 1)
       setCaption({ who: 'note', lead: text, tail: '' })
+      const id = `note:${++s.noteSeq}`
+      setFeed((f) => [{ id, kind: 'note', status: 'note', title: text, t: live.current.seconds || 0 }, ...f])
       setTimeout(beginListening, 250)
       return
     }
 
+    setWaiting(null)
     go('thinking')
     record('user', text)
     setCaption({ who: 'user', lead: text, tail: '' })
@@ -216,7 +276,7 @@ export default function useVoiceChat({ tab, aiMode, askFirst, onToast }) {
         const last = s.actions[s.actions.length - 1]
         if (last) {
           undoAction(last.id)
-          toast({ kind: 'undo', text: undoneText(last) })
+          if (!feedShown()) toast({ kind: 'undo', text: undoneText(last) })
           say(`${UNDO_SPEECH[last.kind]} Anything else?`)
         } else {
           say("There's nothing to undo yet. Anything else?")
@@ -230,15 +290,43 @@ export default function useVoiceChat({ tab, aiMode, askFirst, onToast }) {
         a.mark = out.ctx.done.find((m) => !before.done.includes(m)) || null
         a.followUp = out.ctx.pending
         s.actions.push(a)
-        toast({
-          kind: 'success',
-          text: a.label,
-          key: `action:${a.id}`,
-          action: { label: 'Undo', onClick: () => undoAction(a.id), after: { text: undoneText(a) } },
+        const work = out.work || { title: a.label, steps: [], detail: '' }
+        const item = {
+          id: a.id,
+          kind: a.kind,
+          status: 'running',
+          title: work.title,
+          doneTitle: a.label,
+          detail: work.detail,
+          steps: work.steps,
+          step: 0,
+          t: live.current.seconds || 0,
+        }
+        setFeed((f) => [item, ...f])
+        // Assistant baru melapor setelah pekerjaannya selesai
+        runWork(item, () => {
+          if (!feedShown())
+            toast({
+              kind: 'success',
+              text: a.label,
+              key: `action:${a.id}`,
+              action: { label: 'Undo', onClick: () => undoAction(a.id), after: { text: undoneText(a) } },
+            })
+          say(out.reply, !!out.endCall)
         })
+        return
       }
       say(out.reply, !!out.endCall)
     }, 450 + Math.random() * 350)
+  }
+
+  /** Jawaban dari tombol di kartu "Needs your OK", diperlakukan seperti ucapan user. */
+  function answer(text) {
+    const s = r.current
+    if (!s.active || (s.status !== 'listening' && s.status !== 'speaking')) return
+    s.cancelSpeech?.()
+    s.cancelSpeech = null
+    handleFinal(text)
   }
 
   function beginListening() {
@@ -338,6 +426,8 @@ export default function useVoiceChat({ tab, aiMode, askFirst, onToast }) {
     setNotes(0)
     setCaption(null)
     setSummary(null)
+    setFeed([])
+    setWaiting(null)
     s.log = []
     s.actions = []
     s.netErrors = 0
@@ -455,9 +545,14 @@ export default function useVoiceChat({ tab, aiMode, askFirst, onToast }) {
     notes,
     summary,
     supported,
+    feed,
+    waiting,
+    working,
     start,
     end: () => endSession(),
     toggleMute,
     getLevel,
+    answer,
+    undo: undoFromFeed,
   }
 }

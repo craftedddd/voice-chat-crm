@@ -62,6 +62,7 @@
   --text-faint: var(--n-400);
   --icon: var(--n-500);
   --on-accent: var(--n-0);
+  --on-warning: var(--n-900);
 
   /* kontrol */
   --control-off: var(--n-300);
@@ -178,6 +179,8 @@
   --dur-base: 240ms;
   --dur-slow: 400ms;
   --dur-slower: 600ms;
+  --dur-spin: 900ms; /* satu putaran spinner */
+  --dur-pulse: 1600ms; /* denyut indikator live */
   --ease: cubic-bezier(0.22, 1, 0.36, 1);
   --ease-in: cubic-bezier(0.4, 0, 1, 1);
   --spring: cubic-bezier(0.34, 1.32, 0.52, 1);
@@ -1472,15 +1475,14 @@ button {
   font-weight: var(--fw-medium);
   color: var(--text);
 }
+/* Ikon polos seperti di navigasi, tanpa kotak berwarna */
 .alist__icon {
-  flex: 0 0 30px;
-  width: 30px;
-  height: 30px;
-  border-radius: var(--r-sm);
+  flex: 0 0 18px;
+  width: 18px;
+  height: 18px;
   display: grid;
   place-items: center;
-  background: var(--accent-softer);
-  color: var(--accent);
+  color: var(--icon);
 }
 
 .nlist { display: flex; flex-direction: column; gap: 8px; }
@@ -1819,4 +1821,307 @@ button {
   .stat { background: var(--glass); border-color: var(--glass-strong); }
   .stabs { background: var(--glass-weak); }
   .summary__foot { border-top-color: var(--hairline-on-glass); }
+}
+
+/* ============================================================
+   PANEL KANAN: Settings | Actions
+============================================================ */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.spanel__seg { margin-bottom: var(--s-6); }
+.spanel__seg .seg__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s-1-5);
+}
+/* Badge netral; biru hanya kalau ada yang menunggu persetujuan */
+.seg__badge {
+  min-width: 16px;
+  height: 16px;
+  padding: 0 var(--s-1);
+  border-radius: var(--r-full);
+  background: var(--surface-active);
+  color: var(--text-3);
+  font-size: var(--fs-2xs);
+  font-weight: var(--fw-bold);
+  line-height: 16px;
+  font-variant-numeric: tabular-nums;
+  animation: afeed-pop var(--dur-base) var(--spring);
+}
+.seg__badge.is-alert { background: var(--accent); color: var(--on-accent); }
+
+.spanel__body { animation: afeed-fade var(--dur-base) var(--ease); }
+
+/* ============================================================
+   LIVE ACTIONS: garis waktu monokrom
+   Status dibedakan lewat bentuk titik, bukan warna.
+============================================================ */
+.afeed__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s-3);
+  margin-bottom: var(--s-4);
+}
+.afeed__title { font-size: var(--fs-lg); font-weight: var(--fw-title); color: var(--text); }
+.afeed__meta {
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-medium);
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.afeed__hint {
+  font-size: var(--fs-sm);
+  line-height: var(--lh-relaxed);
+  color: var(--text-muted);
+}
+
+.afeed__list { list-style: none; }
+
+/* Baris: tinggi membuka dari 0 supaya item di bawahnya turun mulus */
+.afeed__row { display: grid; grid-template-rows: 1fr; }
+.afeed__row:not(.is-static) { animation: afeed-open var(--dur-slow) var(--ease); }
+.afeed__row:not(.is-static) .tev__body { animation: afeed-enter var(--dur-slow) var(--ease); }
+.afeed__clip { min-height: 0; overflow: hidden; }
+
+/* Satu kejadian: titik + garis ke kejadian berikutnya */
+.tev {
+  position: relative;
+  padding: 0 0 var(--s-5) var(--s-6);
+}
+.tev::before {
+  content: '';
+  position: absolute;
+  left: 5px;
+  top: 17px;
+  bottom: 3px;
+  width: 1px;
+  background: var(--border-strong);
+}
+.afeed__row:last-child .tev { padding-bottom: 0; }
+.afeed__row:last-child .tev::before { display: none; }
+
+.tnode {
+  position: absolute;
+  left: 0;
+  top: 3px;
+  width: 11px;
+  height: 11px;
+  border-radius: var(--r-full);
+  display: grid;
+  place-items: center;
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1.5px var(--text);
+  transition: box-shadow var(--dur-slow) var(--ease);
+}
+/* selesai: titik solid */
+.tnode--done { box-shadow: none; }
+.tnode--done::after {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-radius: var(--r-full);
+  background: var(--text);
+}
+.afeed__row:not(.is-static) .tnode--done::after { animation: afeed-pop var(--dur-base) var(--spring); }
+/* menunggu jawaban: satu-satunya warna di feed */
+.tnode--waiting { box-shadow: inset 0 0 0 1.5px var(--accent); }
+/* berjalan: cincin putus-putus yang berputar pelan */
+.tnode--running { box-shadow: none; }
+.tnode__ring {
+  width: 11px;
+  height: 11px;
+  animation: afeed-spin calc(var(--dur-spin) * 3) linear infinite;
+}
+.tnode__ring circle {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 1.5;
+  stroke-dasharray: 2.4 2.1;
+}
+.tnode--undone { box-shadow: inset 0 0 0 1.5px var(--control-off); }
+.tnode--note { box-shadow: none; }
+.tnode--note::after {
+  content: '';
+  width: 5px;
+  height: 5px;
+  border-radius: var(--r-full);
+  background: var(--icon);
+}
+
+.tev__row { display: flex; align-items: baseline; justify-content: space-between; gap: var(--s-3); }
+.tev__title {
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+  line-height: var(--lh-base);
+  color: var(--text);
+  animation: afeed-fade var(--dur-base) var(--ease);
+  transition: color var(--dur-slow) var(--ease);
+}
+.tnode--note + .tev__body .tev__title {
+  font-weight: var(--fw-medium);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.tev__title.is-struck {
+  color: var(--text-faint);
+  text-decoration: line-through;
+  text-decoration-color: var(--text-faint);
+}
+.tev__time {
+  flex: 0 0 auto;
+  font-size: var(--fs-2xs);
+  font-weight: var(--fw-medium);
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+}
+.tev__meta {
+  margin-top: var(--s-0-5);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-base);
+  color: var(--text-muted);
+}
+.tev__after { animation: afeed-enter var(--dur-slow) var(--ease); }
+.tev__links { display: inline-flex; gap: var(--s-3); margin-left: var(--s-3); vertical-align: baseline; }
+
+/* Langkah kerja: terlihat saat berjalan, lalu dilipat */
+.tev__fold {
+  display: grid;
+  grid-template-rows: 1fr;
+  transition: grid-template-rows var(--dur-slow) var(--ease), opacity var(--dur-base) var(--ease);
+}
+.tev__fold.is-collapsed { grid-template-rows: 0fr; opacity: 0; }
+.tev__steps {
+  min-height: 0;
+  overflow: hidden;
+  list-style: none;
+  display: grid;
+  gap: var(--s-1);
+  padding-top: var(--s-1-5);
+}
+.tstep {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-base);
+  color: var(--text-muted);
+  animation: afeed-enter var(--dur-base) var(--ease);
+}
+.tstep.is-current { color: var(--text-2); }
+.tstep__mark {
+  flex: 0 0 auto;
+  width: 11px;
+  height: 11px;
+  display: grid;
+  place-items: center;
+  color: var(--text-faint);
+}
+.tstep.is-current .tstep__mark::before {
+  content: '';
+  width: 4px;
+  height: 4px;
+  border-radius: var(--r-full);
+  background: var(--accent);
+  animation: afeed-breathe var(--dur-pulse) ease-in-out infinite;
+}
+
+/* Jawaban: satu tombol pill gelap + link teks */
+.tev__ask { display: flex; align-items: center; gap: var(--s-4); margin-top: var(--s-2-5); }
+.tbtn {
+  height: 28px;
+  padding: 0 var(--s-3-5);
+  border-radius: var(--r-full);
+  background: var(--text);
+  color: var(--surface);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  transition: background var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease);
+}
+.tbtn:hover { background: var(--text-2); }
+.tbtn:active { transform: scale(0.97); }
+.tlink {
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  color: var(--text-3);
+  transition: color var(--dur-fast) var(--ease);
+}
+.tlink:hover { color: var(--text); }
+.tlink--accent { color: var(--link); }
+.tlink--accent:hover { color: var(--accent-hover); }
+.tbtn:focus-visible,
+.tlink:focus-visible,
+.vchip:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Chip Live actions di atas kontrol (mobile) */
+.vchip-slot { display: none; }
+.vchip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1-5);
+  height: 30px;
+  padding: 0 var(--s-3);
+  border-radius: var(--r-full);
+  background: var(--glass-strong);
+  box-shadow: var(--shadow-xs);
+  color: var(--text-2);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  animation: afeed-enter var(--dur-slow) var(--ease);
+}
+.vchip__text { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.vchip__dot {
+  flex: 0 0 auto;
+  width: 6px;
+  height: 6px;
+  border-radius: var(--r-full);
+  box-shadow: inset 0 0 0 1.5px var(--text-muted);
+}
+.vchip.is-working .vchip__dot { box-shadow: inset 0 0 0 1.5px var(--accent); animation: afeed-breathe var(--dur-pulse) ease-in-out infinite; }
+.vchip.is-waiting { color: var(--text); }
+.vchip.is-waiting .vchip__dot { box-shadow: none; background: var(--accent); }
+
+@media (max-width: 640px) {
+  .vchip-slot {
+    display: flex;
+    justify-content: center;
+    height: 30px;
+    /* chip menempel ke status di bawahnya, bukan berjarak selebar gap kontrol */
+    margin-bottom: calc(var(--s-2) - clamp(26px, 4.5dvh, 40px));
+  }
+}
+
+@keyframes afeed-open { from { grid-template-rows: 0fr; } }
+@keyframes afeed-enter { from { opacity: 0; transform: translateY(-4px); } }
+@keyframes afeed-fade { from { opacity: 0; } }
+@keyframes afeed-pop { from { opacity: 0; transform: scale(0.4); } }
+@keyframes afeed-spin { to { transform: rotate(360deg); } }
+@keyframes afeed-breathe { 50% { opacity: 0.35; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .afeed__row,
+  .tev__body,
+  .tev__title,
+  .tev__after,
+  .tstep,
+  .tstep__mark::before,
+  .tnode--done::after,
+  .spanel__body,
+  .seg__badge,
+  .vchip,
+  .vchip__dot { animation: none !important; }
+  .tnode__ring { animation-duration: calc(var(--dur-spin) * 6); }
 }

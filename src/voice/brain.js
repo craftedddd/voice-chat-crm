@@ -122,6 +122,119 @@ const STEPS = {
   },
 }
 
+// ---------------------------------------------------------------------------
+// Live actions: langkah kerja yang ditampilkan saat aksi berjalan.
+// Kunci = teks toast hasil aksi. title = judul saat berjalan, detail = setelah selesai.
+// ---------------------------------------------------------------------------
+const WORK = {
+  'Acme Co. check-in drafted': {
+    title: 'Drafting a check-in to Acme Co.',
+    steps: ['Read your last 3 emails with Acme Co.', 'Wrote a short check-in', 'Saved it to drafts'],
+    detail: 'In your drafts · mentions the proposal',
+  },
+  'Email sent to Acme Co.': {
+    title: 'Sending the check-in to Acme Co.',
+    steps: ['Checked the draft one more time', 'Sent it to your Acme Co. contact'],
+    detail: 'Sent · watching for a reply',
+  },
+  'Reminder set for 9:00 tomorrow': {
+    title: 'Setting a reminder for Acme Co.',
+    steps: ['Created a task for Acme Co.', 'Scheduled it for tomorrow at 9:00'],
+    detail: 'Tomorrow, 9:00',
+  },
+  'Reminder set in 2 days': {
+    title: 'Setting a follow-up reminder',
+    steps: ['Created a follow-up task', 'Scheduled it for 2 days from now'],
+    detail: "Only if Acme Co. hasn't replied",
+  },
+  'Globex call booked for tomorrow': {
+    title: 'Booking a call with Globex',
+    steps: ['Checked your calendar for tomorrow', 'Found a free slot at 10:00', 'Sent the invite to Globex'],
+    detail: 'Tomorrow, 10:00 · 15 min',
+  },
+  'Northwind proposal drafted': {
+    title: 'Preparing the Northwind proposal',
+    steps: ['Opened your standard template', 'Pulled pricing from the deal', 'Wrote the scope section'],
+    detail: 'Draft ready · review the totals before sending',
+  },
+  '2 outreach drafts saved': {
+    title: 'Writing notes to webinar contacts',
+    steps: ['Found the 2 contacts who opened your email', 'Matched each note to their topic', 'Saved 2 drafts'],
+    detail: '2 drafts · each one personalized',
+  },
+  '30 min blocked at 11:00': {
+    title: 'Blocking time for your quick calls',
+    steps: ['Grouped your 3 quick calls', 'Found 30 free minutes at 11:00', 'Added the block to your calendar'],
+    detail: 'Today, 11:00 · 30 min',
+  },
+}
+
+// Kartu "Needs your OK" untuk tawaran yang sedang menunggu jawaban.
+// yes/no = label tombol, say = kalimat yang dikirim seolah diucapkan user.
+const CARDS = {
+  offer_followup_acme: {
+    kind: 'draft',
+    title: 'Draft a check-in to Acme Co.?',
+    detail: 'No reply for 9 days · $12,000 deal',
+    yes: { label: 'Draft it', say: 'Yes, draft it' },
+    no: { label: 'Not now', say: 'Not now' },
+  },
+  ask_send_acme: {
+    kind: 'send',
+    title: 'Send the check-in to Acme Co.?',
+    detail: 'The draft is ready',
+    yes: { label: 'Send', say: 'Send it now' },
+    no: { label: 'Keep as draft', say: 'Keep it in drafts' },
+  },
+  offer_remind_acme: {
+    kind: 'remind',
+    title: 'Remind you about Acme Co.?',
+    detail: 'Tomorrow at 9:00',
+    yes: { label: 'Set reminder', say: 'Yes, remind me' },
+    no: { label: 'Not now', say: 'Not now' },
+  },
+  offer_remind_acme_later: {
+    kind: 'remind',
+    title: 'Set a reminder in 2 days?',
+    detail: "In case Acme Co. doesn't reply",
+    yes: { label: 'Set reminder', say: 'Yes, set it' },
+    no: { label: 'No thanks', say: 'No' },
+  },
+  offer_call_globex: {
+    kind: 'calendar',
+    title: 'Book a call with Globex?',
+    detail: 'Tomorrow, 10:00 · 15 min',
+    yes: { label: 'Book it', say: 'Yes, book it' },
+    no: { label: 'Not now', say: 'Not now' },
+  },
+  offer_proposal_northwind: {
+    kind: 'draft',
+    title: 'Draft the Northwind proposal?',
+    detail: 'From your standard template',
+    yes: { label: 'Draft it', say: 'Yes, draft it' },
+    no: { label: 'Not now', say: 'Not now' },
+  },
+  offer_outreach_webinar: {
+    kind: 'draft',
+    title: 'Write notes to 2 webinar contacts?',
+    detail: 'They opened your follow-up email',
+    yes: { label: 'Write them', say: 'Yes, write them' },
+    no: { label: 'Not now', say: 'Not now' },
+  },
+  offer_plan_tasks: {
+    kind: 'calendar',
+    title: 'Block 30 minutes for quick calls?',
+    detail: 'This morning at 11:00',
+    yes: { label: 'Block time', say: 'Yes, block it' },
+    no: { label: 'Not now', say: 'Not now' },
+  },
+}
+
+/** Kartu persetujuan untuk langkah yang sedang menunggu jawaban (atau null). */
+export function cardFor(stepId) {
+  return stepId && CARDS[stepId] ? { step: stepId, ...CARDS[stepId] } : null
+}
+
 // Antrean rekomendasi: yang belum selesai ditawarkan berikutnya.
 const QUEUE = [
   { key: 'acme', step: 'offer_followup_acme', lead: 'Acme Co. is still waiting on you.' },
@@ -163,7 +276,7 @@ function conclude(out, ctx) {
       reply = `${reply} ${ALL_DONE}`
     }
   }
-  return { reply, toast: out.toast, ctx: { pending, done } }
+  return { reply, toast: out.toast, work: out.toast ? WORK[out.toast] : undefined, ctx: { pending, done } }
 }
 
 // User meminta aksi langsung. Ask Me First menentukan perlu konfirmasi atau tidak.

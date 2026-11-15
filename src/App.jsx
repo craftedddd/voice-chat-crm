@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { IconRail, NavPanel } from './components/NavSide.jsx'
 import VoiceCard from './components/VoiceCard.jsx'
-import SettingsPanel from './components/SettingsPanel.jsx'
+import SidePanel from './components/SidePanel.jsx'
 import { PlusIcon, MenuIcon, CloseIcon, CogIcon } from './icons.jsx'
 import useVoiceChat from './voice/useVoiceChat.js'
 import { BRIEFINGS } from './voice/brain.js'
@@ -40,8 +40,30 @@ export default function App() {
   const toaster = useToaster()
   const showToast = toaster.api.show
 
+  // Panel kanan: Settings | Actions
+  const [panelTab, setPanelTab] = useState('settings')
+
+  // Toast aksi hanya muncul kalau feed Live actions sedang tidak terlihat di layar
+  const isFeedVisible = useCallback(
+    () =>
+      [...document.querySelectorAll('.afeed')].some((el) => {
+        if (!el.offsetParent) return false
+        const b = el.getBoundingClientRect()
+        return b.height > 0 && b.bottom > 0 && b.top < window.innerHeight
+      }),
+    []
+  )
+
   // Voice chat sungguhan (mic + pengenalan suara + suara balasan)
-  const voice = useVoiceChat({ tab: activeTab, aiMode, askFirst, onToast: showToast })
+  const voice = useVoiceChat({ tab: activeTab, aiMode, askFirst, onToast: showToast, isFeedVisible })
+
+  // Saat sesi dimulai, panel pindah ke Actions (sekali per sesi; pilihan user setelahnya dihormati)
+  useEffect(() => {
+    if (voice.status === 'connecting') setPanelTab('actions')
+  }, [voice.status])
+
+  const phase =
+    voice.status === 'idle' ? (voice.feed.length ? 'last' : 'idle') : voice.status === 'ended' ? 'last' : 'live'
 
   // Tutup drawer dengan tombol Esc
   useEffect(() => {
@@ -77,6 +99,22 @@ export default function App() {
     onToast: showToast,
   }
 
+  const feedProps = {
+    phase,
+    feed: voice.feed,
+    waiting: voice.waiting,
+    seconds: voice.seconds,
+    listenOnly: aiMode === 'listen',
+    onAnswer: voice.answer,
+    onUndo: voice.undo,
+    onToast: showToast,
+  }
+  const panelProps = { tab: panelTab, setTab: setPanelTab, settingsProps, feedProps }
+  const openSheet = (tab) => {
+    setPanelTab(tab)
+    setSheetOpen(true)
+  }
+
   return (
     <div className="app">
       <IconRail activeRail="ai" onRail={() => {}} onToast={showToast} />
@@ -96,7 +134,7 @@ export default function App() {
             aria-label="Voice settings"
             aria-haspopup="dialog"
             aria-expanded={sheetOpen}
-            onClick={() => setSheetOpen(true)}
+            onClick={() => openSheet('settings')}
           >
             <CogIcon size={21} />
           </button>
@@ -138,10 +176,18 @@ export default function App() {
             onEnd={voice.end}
             onInvite={() => showToast('Inviting teammates is coming soon')}
             onToast={showToast}
+            working={voice.working}
+            actionChip={{
+              count: voice.feed.filter((x) => x.status !== 'undone').length,
+              waiting: !!voice.waiting,
+              listenOnly: aiMode === 'listen',
+              current: voice.feed.find((x) => x.status === 'running')?.title,
+            }}
+            onOpenActions={() => openSheet('actions')}
           />
 
           <aside className="sidecol">
-            <SettingsPanel {...settingsProps} />
+            <SidePanel {...panelProps} />
           </aside>
         </div>
       </main>
@@ -159,8 +205,8 @@ export default function App() {
       )}
 
       {/* Voice Settings sebagai bottom sheet (mobile) */}
-      <BottomSheet open={sheetOpen} onClose={closeSheet} label="Voice settings">
-        <SettingsPanel {...settingsProps} />
+      <BottomSheet open={sheetOpen} onClose={closeSheet} label={panelTab === 'actions' ? 'Live actions' : 'Voice settings'}>
+        <SidePanel {...panelProps} />
       </BottomSheet>
 
       <Toaster {...toaster} />

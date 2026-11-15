@@ -27,6 +27,9 @@ export default function VoiceCard({
   onEnd,
   onInvite,
   onToast,
+  working = false,
+  actionChip = null, // { count, waiting, listenOnly, current } untuk chip Live actions di mobile
+  onOpenActions,
 }) {
   const active = status === 'connecting' || status === 'listening' || status === 'thinking' || status === 'speaking'
   const ended = status === 'ended'
@@ -54,7 +57,7 @@ export default function VoiceCard({
   else if (idle) label = supported ? 'Tap the mic to start' : 'Voice not supported in this browser'
   else if (status === 'connecting') label = 'Connecting...'
   else if (status === 'speaking') label = 'Speaking...'
-  else if (status === 'thinking') label = 'Thinking...'
+  else if (status === 'thinking') label = working ? 'Working on it...' : 'Thinking...'
   else if (muted) label = 'Muted'
   else label = listenOnly ? 'Listening, taking notes...' : 'Listening...'
 
@@ -110,6 +113,27 @@ export default function VoiceCard({
       </div>
 
       <div className="voicecard__bottom">
+        {/* Chip Live actions (hanya tampil di mobile lewat CSS) */}
+        {active && (
+          <div className="vchip-slot">
+            {actionChip && (actionChip.count > 0 || actionChip.waiting || working) && (
+              <button
+                className={`vchip ${actionChip.waiting ? 'is-waiting' : working ? 'is-working' : ''}`}
+                onClick={onOpenActions}
+                aria-haspopup="dialog"
+              >
+                <span className="vchip__dot" aria-hidden="true" />
+                <span className="vchip__text">
+                  {actionChip.waiting
+                    ? 'Needs your OK'
+                    : working && actionChip.current
+                      ? actionChip.current
+                      : `${actionChip.count} ${actionChip.listenOnly ? 'note' : 'action'}${actionChip.count === 1 ? '' : 's'}`}
+                </span>
+              </button>
+            )}
+          </div>
+        )}
         <div className={`voicecard__status ${ended || idle ? 'is-ended' : ''}`}>{label}</div>
 
         <div className={`controls ${active ? 'is-active' : 'is-idle'}`}>

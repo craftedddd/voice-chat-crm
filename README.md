@@ -22,10 +22,11 @@ Contoh yang bisa diucapkan: "Which deals are waiting on a reply?", "Tell me abou
 
 **UI lainnya:**
 
+- Live actions: panel kanan pindah ke tab Actions saat sesi dimulai. Setiap aksi tampil langkah demi langkah, tawaran yang menunggu jawaban muncul sebagai kartu "Needs your OK" (bisa dijawab lewat suara atau tombol), dan hasilnya bisa di-undo. Toast aksi hanya muncul kalau feed sedang tidak terlihat
 - Tab konteks (Everything / Deals / Contacts / Tasks) mengganti briefing pembuka
 - Toggle Live Captions (menyembunyikan caption) dan Ask Me First
 - Search di menu kiri memfilter item navigasi
-- Responsif: di tablet Voice Settings ditumpuk di bawah kartu dan sidebar jadi drawer. Di mobile voice chat tampil layar penuh, Voice Settings dibuka lewat ikon gear sebagai bottom sheet
+- Responsif: di tablet Voice Settings ditumpuk di bawah kartu dan sidebar jadi drawer. Di mobile voice chat tampil layar penuh, Voice Settings dan Live actions dibuka sebagai bottom sheet (ikon gear atau chip di atas kontrol)
 
 ## Catatan teknis voice
 
@@ -84,5 +85,7 @@ src/
     SettingsPanel.jsx      # panel Voice Settings (AI Mode + Quick Settings)
     SessionSummary.jsx     # ringkasan sesi setelah voice chat selesai
     Toast.jsx              # toast beranimasi (satu pill, dengan Undo)
-    BottomSheet.jsx        # bottom sheet untuk Voice Settings di mobile
+    BottomSheet.jsx        # bottom sheet untuk panel kanan di mobile
+    SidePanel.jsx          # panel kanan bertab: Settings | Actions
+    ActionFeed.jsx         # Live actions: aksi assistant langkah demi langkah
 ```

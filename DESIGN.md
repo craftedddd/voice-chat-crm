@@ -37,6 +37,7 @@ Riwayat audit dan alasan setiap penggabungan nilai: [docs/design-audit.md](docs/
 | `--text-faint` | Placeholder, disabled, chevron |
 | `--icon` | Ikon sekunder |
 | `--on-accent` | Teks dan ikon di atas warna solid |
+| `--on-warning` | Teks di atas `--warning` solid (badge) |
 | `--control-off` | Toggle off, handle sheet |
 | `--accent` / `--accent-hover` | Aksi utama dan hover-nya |
 | `--accent-soft` / `--accent-softer` | Latar lembut brand |
@@ -109,7 +110,17 @@ Letter spacing: `--ls-tight` untuk judul dan teks besar, `--ls-caps` untuk label
 | `--dur-slower` | 600ms | Perubahan suasana (orb) |
 | `--ease` | | Default untuk hampir semua transisi |
 | `--ease-in` | | Elemen keluar |
-| `--spring` | | Efek pantul (toast) |
+| `--spring` | | Efek pantul (toast, centang, badge) |
+| `--dur-spin` | 900ms | Satu putaran spinner |
+| `--dur-pulse` | 1600ms | Denyut indikator live dan status menunggu |
+
+### Pola animasi Live actions
+
+- Item baru: tinggi baris membuka dari 0 (`afeed-open`) supaya item lain turun mulus, isi masuk dengan geser 4px dan fade (`afeed-enter`).
+- Status dibedakan lewat bentuk titik: cincin biru putus-putus berputar (berjalan), cincin biru (menunggu jawaban), titik hitam solid (selesai), cincin pudar (dibatalkan). Titik selesai muncul dengan `--spring` (`afeed-pop`).
+- Langkah kerja dilipat 1,1 detik setelah selesai.
+- Item yang sudah ada saat panel dibuka tidak dianimasikan ulang (`.is-static`).
+- Tanpa ikon di dalam kotak berwarna, tanpa label huruf kapital berwarna, tanpa glow, gradien bergerak, atau shimmer. Biru accent hanya untuk yang butuh perhatian. Semua animasi mati di `prefers-reduced-motion`, kecuali spinner yang diperlambat.
 
 Pengecualian: koreografi toast (morph titik ke pill) memakai durasi literal karena terikat dengan timer di `Toast.jsx` (`T_DOT`, `T_CLOSE`, `T_LEAVE`). Ubah keduanya bersamaan.
 
@@ -132,6 +143,11 @@ Pakai ulang komponen ini sebelum membuat yang baru.
 | Kartu | `.voicecard` | Kartu utama dengan `--shadow-card` |
 | Statistik | `.stat` | Angka di summary |
 | Bottom sheet | `BottomSheet.jsx` | Panel dari bawah di mobile |
+| Panel kanan | `SidePanel.jsx` | Tab Settings dan Actions, dipakai di kolom kanan dan di bottom sheet |
+| Live actions | `ActionFeed.jsx` | Garis waktu (`.tev`), titik status (`.tnode`), langkah kerja (`.tstep`) |
+| Tombol pill gelap | `.tbtn` | Satu jawaban utama di feed |
+| Link teks | `.tlink`, `.tlink--accent` | Jawaban kedua, Open, Undo |
+| Chip mobile | `.vchip` | Ringkasan Live actions di atas kontrol voice |
 | Toast | `Toast.jsx` | Satu pill, berbagai jenis |
 
 ---
