@@ -22,11 +22,11 @@ Contoh yang bisa diucapkan: "Which deals are waiting on a reply?", "Tell me abou
 
 **UI lainnya:**
 
-- Live actions: panel kanan pindah ke tab Actions saat sesi dimulai. Setiap aksi tampil langkah demi langkah, tawaran yang menunggu jawaban muncul sebagai kartu "Needs your OK" (bisa dijawab lewat suara atau tombol), dan hasilnya bisa di-undo. Toast aksi hanya muncul kalau feed sedang tidak terlihat
+- Live actions: panel kanan pindah ke tab Actions saat sesi dimulai. Setiap aksi tampil langkah demi langkah, tawaran yang menunggu jawaban muncul sebagai kartu "Needs your OK" (bisa dijawab lewat suara atau tombol), dan hasilnya bisa di-undo. Toast aksi hanya muncul kalau feed sedang tidak terlihat. Pertanyaan yang menunggu jawaban tampil sebagai toast yang tetap ada sampai dijawab, dan muncul lagi setelah toast lain selesai
 - Tab konteks (Everything / Deals / Contacts / Tasks) mengganti briefing pembuka
 - Toggle Live Captions (menyembunyikan caption) dan Ask Me First
 - Search di menu kiri memfilter item navigasi
-- Responsif: di tablet Voice Settings ditumpuk di bawah kartu dan sidebar jadi drawer. Di mobile voice chat tampil layar penuh, Voice Settings dan Live actions dibuka sebagai bottom sheet (ikon gear atau chip di atas kontrol)
+- Responsif: di tablet Voice Settings ditumpuk di bawah kartu dan sidebar jadi drawer. Di mobile voice chat tampil layar penuh dengan caption 3 baris yang bergulir sendiri, dan Voice Settings serta Live actions dibuka sebagai bottom sheet (ikon gear atau ketuk toast persetujuan)
 
 ## Catatan teknis voice
 

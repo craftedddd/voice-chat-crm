@@ -1,3 +1,4 @@
+import { useLayoutEffect, useRef, useState } from 'react'
 import { MicIcon, MicOffIcon, CloseIcon, UserPlusIcon } from '../icons.jsx'
 import Orb from './Orb.jsx'
 import SessionSummary from './SessionSummary.jsx'
@@ -9,6 +10,61 @@ function formatTime(total) {
 }
 
 const WHO_LABEL = { user: 'You', ai: 'Assistant', note: 'Note saved' }
+const CAPTION_LINES = 3
+
+/**
+ * Caption live dalam jendela 3 baris yang tidak perlu di-scroll.
+ * Baris yang sedang diucapkan dijaga di baris kedua (baris ketiga = teks berikutnya, masih abu);
+ * saat suara pindah baris, semua baris naik satu dengan halus dan baris teratas memudar.
+ */
+function LiveCaption({ lead, tail }) {
+  const winRef = useRef(null)
+  const textRef = useRef(null)
+  const caretRef = useRef(null)
+  const prevText = useRef('')
+  const [view, setView] = useState({ shift: 0, height: null, instant: true })
+
+  useLayoutEffect(() => {
+    const measure = () => {
+      const text = textRef.current
+      const caret = caretRef.current
+      if (!text || !caret) return
+      const lh = parseFloat(getComputedStyle(text).lineHeight) || 26
+      const lines = Math.max(1, Math.round(text.offsetHeight / lh))
+      const current = Math.floor((caret.offsetTop + 1) / lh)
+      const shift = Math.max(0, Math.min(current - 1, lines - CAPTION_LINES))
+      const full = lead + tail
+      // Ucapan baru (bukan lanjutan): pindah tanpa animasi supaya teks tidak meluncur turun
+      const instant = full.slice(0, 12) !== prevText.current.slice(0, 12)
+      prevText.current = full
+      setView((v) =>
+        v.shift === shift && v.height === lh * CAPTION_LINES ? v : { shift, height: lh * CAPTION_LINES, instant }
+      )
+    }
+    measure()
+    const ro = new ResizeObserver(measure)
+    if (winRef.current) ro.observe(winRef.current)
+    return () => ro.disconnect()
+  }, [lead, tail])
+
+  return (
+    <div
+      ref={winRef}
+      className={`capwin ${view.shift > 0 ? 'is-shifted' : ''}`}
+      style={view.height ? { height: view.height } : undefined}
+    >
+      <p
+        ref={textRef}
+        className={`voicecard__captions voicecard__captions--live capwin__text ${view.instant ? 'is-instant' : ''}`}
+        style={{ transform: `translateY(${-view.shift * (view.height / CAPTION_LINES || 0)}px)` }}
+      >
+        <span className="t-lead">{lead}</span>
+        <span ref={caretRef} className="capwin__caret" aria-hidden="true" />
+        <span className="t-tail">{tail}</span>
+      </p>
+    </div>
+  )
+}
 
 export default function VoiceCard({
   status,
@@ -28,8 +84,6 @@ export default function VoiceCard({
   onInvite,
   onToast,
   working = false,
-  actionChip = null, // { count, waiting, listenOnly, current } untuk chip Live actions di mobile
-  onOpenActions,
 }) {
   const active = status === 'connecting' || status === 'listening' || status === 'thinking' || status === 'speaking'
   const ended = status === 'ended'
@@ -87,10 +141,7 @@ export default function VoiceCard({
     body = (
       <div className="voicecard__captionwrap" key={caption.who}>
         <div className="voicecard__who">{WHO_LABEL[caption.who]}</div>
-        <p className="voicecard__captions voicecard__captions--live">
-          <span className="t-lead">{caption.lead}</span>
-          <span className="t-tail">{caption.tail}</span>
-        </p>
+        <LiveCaption lead={caption.lead} tail={caption.tail} />
       </div>
     )
   } else {
@@ -113,27 +164,6 @@ export default function VoiceCard({
       </div>
 
       <div className="voicecard__bottom">
-        {/* Chip Live actions (hanya tampil di mobile lewat CSS) */}
-        {active && (
-          <div className="vchip-slot">
-            {actionChip && (actionChip.count > 0 || actionChip.waiting || working) && (
-              <button
-                className={`vchip ${actionChip.waiting ? 'is-waiting' : working ? 'is-working' : ''}`}
-                onClick={onOpenActions}
-                aria-haspopup="dialog"
-              >
-                <span className="vchip__dot" aria-hidden="true" />
-                <span className="vchip__text">
-                  {actionChip.waiting
-                    ? 'Needs your OK'
-                    : working && actionChip.current
-                      ? actionChip.current
-                      : `${actionChip.count} ${actionChip.listenOnly ? 'note' : 'action'}${actionChip.count === 1 ? '' : 's'}`}
-                </span>
-              </button>
-            )}
-          </div>
-        )}
         <div className={`voicecard__status ${ended || idle ? 'is-ended' : ''}`}>{label}</div>
 
         <div className={`controls ${active ? 'is-active' : 'is-idle'}`}>

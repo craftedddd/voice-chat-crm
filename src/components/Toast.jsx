@@ -9,6 +9,10 @@ import { forwardRef, useEffect, useLayoutEffect, useRef, useState } from 'react'
  *   { text, kind: 'success' | 'info' | 'error' | 'undo' | 'ended', action?: { label, onClick, after? }, duration?, key?, defer? }
  * action.after (opsional) adalah isi pengganti setelah tombol ditekan, misalnya "Email unsent".
  * defer: true berarti menunggu toast yang punya tombol (misalnya Undo) selesai dulu, agar tidak tertimpa.
+ * onTap (opsional): mengetuk teks toast menjalankan fungsi ini.
+ *
+ * setSticky(input | null): toast yang tetap tampil sampai dilepas (misalnya pertanyaan yang menunggu jawaban).
+ * Toast lain boleh menggantikannya; setelah toast itu selesai, toast sticky muncul lagi.
  */
 
 const DURATION = { info: 2600, success: 3200, undo: 2400, error: 6000, ended: 3200 }
@@ -25,7 +29,9 @@ function normalize(input) {
     kind,
     text: t.text,
     action: t.action || null,
-    duration: t.duration ?? (t.action ? ACTION_DURATION : DURATION[kind] || 2600),
+    onTap: t.onTap || null,
+    sticky: !!t.sticky,
+    duration: t.sticky ? Infinity : t.duration ?? (t.action ? ACTION_DURATION : DURATION[kind] || 2600),
     key: t.key || `${kind}:${t.text}`,
   }
 }
@@ -41,6 +47,7 @@ function createToaster(setView) {
   let remaining = 0
   let paused = false
   let queued = null // toast yang menunggu toast bertombol selesai
+  let sticky = null // toast yang kembali tampil setelah toast lain selesai
 
   const reduce = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches
   const emit = () => setView({ item, phase, pulse })
@@ -53,6 +60,7 @@ function createToaster(setView) {
   function arm(ms) {
     clearTimeout(hideTimer)
     remaining = ms
+    if (!Number.isFinite(ms)) return // sticky: tidak pernah hilang sendiri
     deadline = Date.now() + ms
     if (!paused) hideTimer = setTimeout(hide, ms)
   }
@@ -73,6 +81,8 @@ function createToaster(setView) {
           const next = queued
           queued = null
           show(next)
+        } else if (sticky) {
+          show(sticky)
         }
       }, T_LEAVE)
     }, reduce() ? 0 : T_CLOSE)
@@ -120,8 +130,36 @@ function createToaster(setView) {
     arm(next.duration + T_DOT)
   }
 
+  function setSticky(input) {
+    if (!input) {
+      const was = sticky
+      sticky = null
+      if (was && item?.sticky && item.key === was.key) {
+        // Ada toast yang antre di belakang pertanyaan ini (misalnya "Voice chat ended"): langsung ganti
+        if (queued) {
+          const next = queued
+          queued = null
+          show({ ...next, defer: false })
+        } else {
+          hide()
+        }
+      }
+      return
+    }
+    // Pertanyaan yang sama: cukup perbarui isinya, jangan tampilkan ulang (dipanggil tiap render)
+    if (sticky && sticky.key === input.key) {
+      sticky = { ...input, sticky: true }
+      if (item?.sticky && item.key === input.key) item = { ...item, action: input.action || null, onTap: input.onTap || null }
+      return
+    }
+    sticky = { ...input, sticky: true }
+    // Tampil sekarang kalau slot kosong atau sedang berisi sticky lama; selain itu menunggu giliran
+    if (!item || phase === 'gone' || item.sticky) show(sticky)
+  }
+
   function runAction() {
     if (!item?.action) return
+    if (item.sticky) sticky = null
     const { onClick, after } = item.action
     onClick?.()
     if (after) {
@@ -148,11 +186,12 @@ function createToaster(setView) {
 
   function destroy() {
     queued = null
+    sticky = null
     clearTimeout(hideTimer)
     clearTimeout(phaseTimer)
   }
 
-  return { show, hide, runAction, pause, resume, destroy }
+  return { show, hide, setSticky, runAction, pause, resume, destroy }
 }
 
 export function useToaster() {
@@ -183,6 +222,12 @@ function ToastIcon({ kind }) {
         <circle cx="9" cy="12.7" r="1.05" style={{ fill: 'var(--on-accent)' }} />
       </svg>
     )
+  if (kind === 'ask')
+    return (
+      <svg {...common} className="toast__icon">
+        <circle cx="9" cy="9" r="5.5" fill="none" strokeWidth="1.8" style={{ stroke: 'var(--accent)' }} />
+      </svg>
+    )
   if (kind === 'ended')
     return (
       <svg {...common} className="toast__icon">
@@ -211,7 +256,13 @@ const ToastContent = forwardRef(function ToastContent({ item, className = '', on
   return (
     <div ref={ref} className={`toast__content ${item.action ? 'has-action' : ''} ${className}`} aria-hidden={hidden || undefined}>
       <ToastIcon kind={item.kind} />
-      <span className="toast__text">{item.text}</span>
+      {item.onTap ? (
+        <button className="toast__text toast__tap" onClick={item.onTap} tabIndex={hidden ? -1 : 0}>
+          {item.text}
+        </button>
+      ) : (
+        <span className="toast__text">{item.text}</span>
+      )}
       {item.action && (
         <button className="toast__action" onClick={onAction} tabIndex={hidden ? -1 : 0}>
           {item.action.label}

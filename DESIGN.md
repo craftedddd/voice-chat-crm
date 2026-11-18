@@ -122,6 +122,18 @@ Letter spacing: `--ls-tight` untuk judul dan teks besar, `--ls-caps` untuk label
 - Item yang sudah ada saat panel dibuka tidak dianimasikan ulang (`.is-static`).
 - Tanpa ikon di dalam kotak berwarna, tanpa label huruf kapital berwarna, tanpa glow, gradien bergerak, atau shimmer. Biru accent hanya untuk yang butuh perhatian. Semua animasi mati di `prefers-reduced-motion`, kecuali spinner yang diperlambat.
 
+### Pola caption live
+
+- Jendela tetap 3 baris. Baris yang sedang diucapkan dijaga di baris kedua, baris ketiga berisi teks berikutnya (abu).
+- Saat suara pindah baris, teks naik satu baris (`--dur-slow`, `--ease`) dan baris teratas memudar lewat mask.
+- Ucapan baru langsung tampil dari atas tanpa animasi turun.
+
+### Pola toast persetujuan
+
+- Tampil selama ada tawaran yang menunggu jawaban dan feed Actions tidak terlihat (di mobile: sheet tertutup atau di tab Settings).
+- Toast lain boleh menggantikannya; setelah toast itu selesai, pertanyaannya muncul lagi.
+- Tombol = jawaban "ya". Mengetuk teks membuka tab Actions. Menolak cukup lewat suara atau di feed.
+
 Pengecualian: koreografi toast (morph titik ke pill) memakai durasi literal karena terikat dengan timer di `Toast.jsx` (`T_DOT`, `T_CLOSE`, `T_LEAVE`). Ubah keduanya bersamaan.
 
 ---
@@ -147,8 +159,8 @@ Pakai ulang komponen ini sebelum membuat yang baru.
 | Live actions | `ActionFeed.jsx` | Garis waktu (`.tev`), titik status (`.tnode`), langkah kerja (`.tstep`) |
 | Tombol pill gelap | `.tbtn` | Satu jawaban utama di feed |
 | Link teks | `.tlink`, `.tlink--accent` | Jawaban kedua, Open, Undo |
-| Chip mobile | `.vchip` | Ringkasan Live actions di atas kontrol voice |
-| Toast | `Toast.jsx` | Satu pill, berbagai jenis |
+| Toast | `Toast.jsx` | Satu pill, berbagai jenis. `setSticky()` untuk pertanyaan yang menunggu jawaban (ikon cincin biru, sama dengan titik "menunggu" di feed) |
+| Caption live | `LiveCaption` di `VoiceCard.jsx` | Jendela 3 baris tanpa scroll (`.capwin`) |
 
 ---
 

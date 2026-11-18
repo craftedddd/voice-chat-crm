@@ -115,6 +115,29 @@ export default function App() {
     setSheetOpen(true)
   }
 
+  // Pertanyaan yang menunggu jawaban jadi toast yang tetap tampil, kecuali feed Actions sedang terlihat.
+  // Di mobile feed hanya terlihat kalau sheet terbuka di tab Actions; di layar lebih besar dicek dari DOM.
+  const { waiting, answer } = voice
+  useEffect(() => {
+    const api = toaster.api
+    const mobile = window.matchMedia('(max-width: 640px)').matches
+    const feedOnScreen = mobile ? sheetOpen && panelTab === 'actions' : panelTab === 'actions' && isFeedVisible()
+    if (!waiting || feedOnScreen) {
+      api.setSticky(null)
+      return
+    }
+    api.setSticky({
+      kind: 'ask',
+      text: waiting.title,
+      key: `ask:${waiting.step}`,
+      action: { label: waiting.yes.label, onClick: () => answer(waiting.yes.say) },
+      onTap: () => {
+        setPanelTab('actions')
+        if (mobile) setSheetOpen(true)
+      },
+    })
+  }, [waiting, answer, sheetOpen, panelTab, isFeedVisible, toaster.api])
+
   return (
     <div className="app">
       <IconRail activeRail="ai" onRail={() => {}} onToast={showToast} />
@@ -177,13 +200,6 @@ export default function App() {
             onInvite={() => showToast('Inviting teammates is coming soon')}
             onToast={showToast}
             working={voice.working}
-            actionChip={{
-              count: voice.feed.filter((x) => x.status !== 'undone').length,
-              waiting: !!voice.waiting,
-              listenOnly: aiMode === 'listen',
-              current: voice.feed.find((x) => x.status === 'running')?.title,
-            }}
-            onOpenActions={() => openSheet('actions')}
           />
 
           <aside className="sidecol">

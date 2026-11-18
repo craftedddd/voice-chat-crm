@@ -775,6 +775,27 @@ button {
   animation: none;
 }
 
+/* Jendela caption live: 3 baris tetap, baris bergulir naik (lihat LiveCaption di VoiceCard) */
+.capwin {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start; /* teks setinggi isinya, bukan setinggi jendela */
+  overflow: hidden;
+}
+.capwin.is-shifted {
+  /* baris teratas = konteks sebelumnya, dibuat pudar */
+  -webkit-mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.28) 0%, #000 36%);
+  mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.28) 0%, #000 36%);
+}
+.capwin__text {
+  position: relative; /* acuan posisi penanda baris */
+  transition: transform var(--dur-slow) var(--ease);
+  will-change: transform;
+}
+.capwin__text.is-instant { transition: none; }
+.capwin__caret { display: inline; }
+
 .voicecard__captions--off {
   font-size: var(--fs-lg);
   font-weight: var(--fw-regular);
@@ -1175,7 +1196,7 @@ button {
 .toast__content.has-action { padding-right: 6px; }
 .toast:not(.is-open) .toast__content { opacity: 0; filter: blur(4px); }
 
-.toast__content.is-in { animation: toast-content-in var(--dur-slow) cubic-bezier(0.2, 0.8, 0.2, 1) var(--dur-fast) both; }
+.toast__content.is-in { animation: toast-content-in var(--dur-slow) cubic-bezier(0.2, 0.8, 0.2, 1) 60ms both; } /* jeda 60ms: bagian koreografi toast */
 .toast__content.is-out { animation: toast-content-out var(--dur-base) ease both; }
 
 @keyframes toast-content-in {
@@ -1193,6 +1214,15 @@ button {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+/* teks yang bisa diketuk (misalnya membuka tab Actions) */
+.toast__tap {
+  font: inherit;
+  letter-spacing: inherit;
+  color: inherit;
+  text-align: left;
+  padding: 0;
+}
+.toast__tap:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: var(--r-xs); }
 
 .toast__action {
   flex: 0 0 auto;
@@ -1777,12 +1807,10 @@ button {
 
   .voicecard__middle {
     min-height: 0;
-    overflow-y: auto;
+    overflow: hidden; /* caption live punya jendela 3 baris sendiri, tidak perlu scroll */
     padding-top: clamp(18px, 3.4dvh, 32px);
     padding-bottom: 16px;
-    scrollbar-width: none;
   }
-  .voicecard__middle::-webkit-scrollbar { display: none; }
   .voicecard__captions {
     max-width: 330px;
     font-size: var(--fs-3xl);
@@ -2060,48 +2088,9 @@ button {
 .tlink--accent { color: var(--link); }
 .tlink--accent:hover { color: var(--accent-hover); }
 .tbtn:focus-visible,
-.tlink:focus-visible,
-.vchip:focus-visible {
+.tlink:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
-}
-
-/* Chip Live actions di atas kontrol (mobile) */
-.vchip-slot { display: none; }
-.vchip {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--s-1-5);
-  height: 30px;
-  padding: 0 var(--s-3);
-  border-radius: var(--r-full);
-  background: var(--glass-strong);
-  box-shadow: var(--shadow-xs);
-  color: var(--text-2);
-  font-size: var(--fs-xs);
-  font-weight: var(--fw-semibold);
-  animation: afeed-enter var(--dur-slow) var(--ease);
-}
-.vchip__text { max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.vchip__dot {
-  flex: 0 0 auto;
-  width: 6px;
-  height: 6px;
-  border-radius: var(--r-full);
-  box-shadow: inset 0 0 0 1.5px var(--text-muted);
-}
-.vchip.is-working .vchip__dot { box-shadow: inset 0 0 0 1.5px var(--accent); animation: afeed-breathe var(--dur-pulse) ease-in-out infinite; }
-.vchip.is-waiting { color: var(--text); }
-.vchip.is-waiting .vchip__dot { box-shadow: none; background: var(--accent); }
-
-@media (max-width: 640px) {
-  .vchip-slot {
-    display: flex;
-    justify-content: center;
-    height: 30px;
-    /* chip menempel ke status di bawahnya, bukan berjarak selebar gap kontrol */
-    margin-bottom: calc(var(--s-2) - clamp(26px, 4.5dvh, 40px));
-  }
 }
 
 @keyframes afeed-open { from { grid-template-rows: 0fr; } }
@@ -2120,8 +2109,6 @@ button {
   .tstep__mark::before,
   .tnode--done::after,
   .spanel__body,
-  .seg__badge,
-  .vchip,
-  .vchip__dot { animation: none !important; }
+  .seg__badge { animation: none !important; }
   .tnode__ring { animation-duration: calc(var(--dur-spin) * 6); }
 }
