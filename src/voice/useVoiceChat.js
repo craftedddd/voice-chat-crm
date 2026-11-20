@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { getSR, isVoiceSupported, primeSpeech, speak, createMicMeter } from './speech.js'
-import { respond, openingFor, topicsIn, nextUp, cardFor } from './brain.js'
+import { respond, openingFor, cardFor, stillWaiting, checkTomorrow, undoReply, nothingToUndo, switchTo, switchedLine, tabName } from './brain.js'
 
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v))
 // Tempo langkah kerja Live actions (ms): cukup lambat untuk terbaca, tidak bikin menunggu
@@ -8,36 +8,24 @@ const STEP_MS = () => 520 + Math.random() * 380
 const SETTLE_MS = 260 // jeda setelah aksi selesai sebelum assistant bicara
 const formatClock = (t) => `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`
 
-// Toast aksi demo -> item "Actions taken" di ringkasan sesi
-function toAction(toast) {
-  const label = toast.replace(/^Demo action:\s*/i, '')
-  const t = label.toLowerCase()
-  const kind = /\bsent\b/.test(t)
-    ? 'send'
-    : /reminder/.test(t)
-      ? 'remind'
-      : /booked|blocked/.test(t)
-        ? 'calendar'
-        : 'draft'
-  return { label: label.charAt(0).toUpperCase() + label.slice(1), kind }
+// Toast aksi demo -> item "Actions taken" di ringkasan sesi.
+// Jenis aksi dan teks undo datang dari WORK di brain.js.
+function toAction(toast, work) {
+  return {
+    label: toast.charAt(0).toUpperCase() + toast.slice(1),
+    key: work?.key || null,
+    kind: work?.kind || 'label',
+    undone: work?.undone || 'Action undone',
+  }
 }
-
-// Teks setelah aksi dibatalkan (toast) dan ucapan assistant saat diminta "undo"
-const UNDONE = { send: 'Email unsent', draft: 'Draft deleted', remind: 'Reminder removed', calendar: 'Removed from calendar' }
-const UNDO_SPEECH = {
-  send: 'Okay, I pulled that email back before it went out.',
-  draft: 'Okay, I deleted that draft.',
-  remind: 'Okay, I removed that reminder.',
-  calendar: 'Okay, I took that off your calendar.',
-}
-const undoneText = (a) => (a.kind === 'draft' && /drafts/i.test(a.label) ? 'Drafts deleted' : UNDONE[a.kind])
+const undoneText = (a) => a.undone
 
 /**
  * Mesin status voice chat:
  * idle -> connecting -> listening <-> thinking -> speaking -> listening ... -> ended
  * Semua nilai yang dibaca callback async diambil dari ref agar tidak basi.
  */
-export default function useVoiceChat({ tab, aiMode, askFirst, onToast, isFeedVisible }) {
+export default function useVoiceChat({ tab, aiMode, askFirst, voiceLang = 'en', onToast, isFeedVisible }) {
   const [status, setStatus] = useState('idle')
   const [muted, setMuted] = useState(false)
   const [seconds, setSeconds] = useState(0)
@@ -51,7 +39,7 @@ export default function useVoiceChat({ tab, aiMode, askFirst, onToast, isFeedVis
   const [working, setWorking] = useState(false)
 
   const live = useRef({})
-  live.current = { ...live.current, tab, aiMode, askFirst, onToast, isFeedVisible, muted, seconds }
+  live.current = { ...live.current, tab, aiMode, askFirst, voiceLang, onToast, isFeedVisible, muted, seconds }
 
   const r = useRef({
     active: false,
@@ -74,6 +62,9 @@ export default function useVoiceChat({ tab, aiMode, askFirst, onToast, isFeedVis
     netErrors: 0,
     startedAt: 0,
     mode: 'brief',
+    lang: 'en', // bahasa percakapan; bisa diganti di tengah sesi
+    ending: false, // ucapan pamit sedang berjalan, sesi berakhir setelahnya
+    announceLang: false, // bahasa diganti saat assistant berpikir: konfirmasi di awal jawaban berikutnya
     tabAtStart: 'Everything',
   })
 
@@ -89,8 +80,12 @@ export default function useVoiceChat({ tab, aiMode, askFirst, onToast, isFeedVis
   const patchItem = (id, patch) => setFeed((f) => f.map((x) => (x.id === id ? { ...x, ...patch } : x)))
   const feedShown = () => !!live.current.isFeedVisible?.()
   const showWaiting = () => {
-    const card = cardFor(r.current.ctx.pending)
-    setWaiting((w) => (card ? (w && w.step === card.step ? w : { ...card, t: live.current.seconds || 0 }) : null))
+    const card = cardFor(r.current.ctx.pending, r.current.lang)
+    setWaiting((w) => {
+      if (!card) return null
+      if (w && w.step === card.step) return w.yes.say === card.yes.say ? w : { ...card, t: w.t } // bahasa berganti
+      return { ...card, t: live.current.seconds || 0 }
+    })
   }
 
   const micBlockedToast = () => ({
@@ -123,7 +118,13 @@ export default function useVoiceChat({ tab, aiMode, askFirst, onToast, isFeedVis
       s.ctx = { ...s.ctx, pending: null }
       setWaiting(null)
     }
-    setSummary((sum) => (sum ? { ...sum, actions: sum.actions.filter((x) => x.id !== id) } : sum))
+    setSummary((sum) => {
+      if (!sum) return sum
+      const actions = sum.actions.filter((x) => x.id !== id)
+      if (sum.mode === 'listen') return { ...sum, actions }
+      const handled = actions.map((x) => x.key)
+      return { ...sum, actions, waiting: stillWaiting(handled), tomorrow: checkTomorrow(handled) }
+    })
     patchItem(id, { status: 'undone' })
     return a
   }
@@ -162,20 +163,19 @@ export default function useVoiceChat({ tab, aiMode, askFirst, onToast, isFeedVis
 
   function buildSummary() {
     const s = r.current
-    const all = s.log.map((x) => x.text).join(' ')
     return {
       id: Date.now(),
       startedAt: s.startedAt,
       endedAt: Date.now(),
       duration: live.current.seconds || 0,
       mode: s.mode,
-      tab: s.tabAtStart,
+      tab: tabName(s.tabAtStart),
       transcript: [...s.log],
       actions: [...s.actions],
       notes: s.log.filter((x) => x.who === 'note').map((x) => x.text),
       exchanges: s.log.filter((x) => x.who === 'user' || x.who === 'note').length,
-      topics: topicsIn(all),
-      nextUp: s.mode === 'listen' ? null : nextUp(s.ctx.done),
+      waiting: s.mode === 'listen' ? [] : stillWaiting(s.actions.map((a) => a.key)),
+      tomorrow: s.mode === 'listen' ? null : checkTomorrow(s.actions.map((a) => a.key)),
     }
   }
 
@@ -205,6 +205,9 @@ export default function useVoiceChat({ tab, aiMode, askFirst, onToast, isFeedVis
       endedToast(reason)
     }
     s.active = false
+    s.ending = false
+    s.announceLang = false
+    s.retab = false
     clearTimeout(s.thinkTimer)
     s.cancelSpeech?.()
     s.cancelSpeech = null
@@ -218,11 +221,17 @@ export default function useVoiceChat({ tab, aiMode, askFirst, onToast, isFeedVis
   function say(text, thenEnd = false) {
     const s = r.current
     stopRecognition()
+    s.ending = thenEnd
+    if (s.announceLang) {
+      s.announceLang = false
+      if (!thenEnd) text = `${switchedLine(s.lang)} ${text}`
+    }
     go('speaking')
     record('ai', text)
     setCaption({ who: 'ai', lead: '', tail: text })
     showWaiting()
     s.cancelSpeech = speak(text, {
+      lang: s.lang,
       onProgress: (n, boundary) => {
         if (boundary) s.pulse = 1
         setCaption({ who: 'ai', lead: text.slice(0, n), tail: text.slice(n) })
@@ -232,6 +241,11 @@ export default function useVoiceChat({ tab, aiMode, askFirst, onToast, isFeedVis
         if (!s.active) return
         if (thenEnd) {
           endSession('ended', 'goodbye')
+          return
+        }
+        // Tab diganti saat assistant sedang berpikir: briefing tab baru setelah jawaban ini
+        if (s.retab) {
+          rebrief()
           return
         }
         go('listening')
@@ -262,13 +276,15 @@ export default function useVoiceChat({ tab, aiMode, askFirst, onToast, isFeedVis
     s.thinkTimer = setTimeout(() => {
       if (!s.active) return
       const before = s.ctx
-      const out = respond({
+      const turn = {
         text,
         mode: live.current.aiMode,
         askFirst: live.current.askFirst,
         tab: live.current.tab,
-        ctx: s.ctx,
-      })
+        ctx: before,
+        lang: s.lang,
+      }
+      const out = respond(turn)
       s.ctx = out.ctx
 
       // "Undo that": batalkan aksi terakhir
@@ -276,16 +292,16 @@ export default function useVoiceChat({ tab, aiMode, askFirst, onToast, isFeedVis
         const last = s.actions[s.actions.length - 1]
         if (last) {
           undoAction(last.id)
-          if (!feedShown()) toast({ kind: 'undo', text: undoneText(last) })
-          say(`${UNDO_SPEECH[last.kind]} Anything else?`)
+          toast({ kind: 'undo', text: undoneText(last) })
+          say(undoReply(last.kind, s.lang))
         } else {
-          say("There's nothing to undo yet. Anything else?")
+          say(nothingToUndo(s.lang))
         }
         return
       }
 
       if (out.toast) {
-        const a = toAction(out.toast)
+        const a = toAction(out.toast, out.work)
         a.id = ++s.actionSeq
         a.mark = out.ctx.done.find((m) => !before.done.includes(m)) || null
         a.followUp = out.ctx.pending
@@ -303,16 +319,17 @@ export default function useVoiceChat({ tab, aiMode, askFirst, onToast, isFeedVis
           t: live.current.seconds || 0,
         }
         setFeed((f) => [item, ...f])
-        // Assistant baru melapor setelah pekerjaannya selesai
+        // Assistant baru melapor setelah pekerjaannya selesai. Toast hasil aksi selalu tampil.
         runWork(item, () => {
-          if (!feedShown())
-            toast({
-              kind: 'success',
-              text: a.label,
-              key: `action:${a.id}`,
-              action: { label: 'Undo', onClick: () => undoAction(a.id), after: { text: undoneText(a) } },
-            })
-          say(out.reply, !!out.endCall)
+          toast({
+            kind: 'success',
+            text: a.label,
+            key: `action:${a.id}`,
+            action: { label: 'Undo', onClick: () => undoAction(a.id), after: { text: undoneText(a) } },
+          })
+          // Bahasa diganti selama aksi berjalan: susun ulang jawabannya dalam bahasa baru
+          const reply = s.lang === turn.lang ? out.reply : respond({ ...turn, lang: s.lang }).reply
+          say(reply, !!out.endCall)
         })
         return
       }
@@ -336,7 +353,7 @@ export default function useVoiceChat({ tab, aiMode, askFirst, onToast, isFeedVis
     stopRecognition()
 
     const rec = new (getSR())()
-    rec.lang = 'en-US'
+    rec.lang = s.lang === 'id' ? 'id-ID' : 'en-US'
     rec.interimResults = true
     rec.continuous = false
     rec.maxAlternatives = 1
@@ -464,12 +481,14 @@ export default function useVoiceChat({ tab, aiMode, askFirst, onToast, isFeedVis
     s.restarts = []
     s.startedAt = Date.now()
     s.mode = live.current.aiMode
+    s.lang = live.current.voiceLang
     s.tabAtStart = live.current.tab
+    s.tabKey = JSON.stringify(live.current.tab)
     if (live.current.aiMode === 'listen') {
       go('listening')
       beginListening()
     } else {
-      const opening = openingFor(live.current.tab)
+      const opening = openingFor(live.current.tab, s.lang)
       s.ctx = opening.ctx
       say(opening.reply)
     }
@@ -484,6 +503,57 @@ export default function useVoiceChat({ tab, aiMode, askFirst, onToast, isFeedVis
     if (next) stopRecognition()
     else beginListening()
   }
+
+  // Bahasa diganti di tengah sesi: mic langsung mendengar bahasa baru, lalu assistant
+  // mengonfirmasi dan mengulang pertanyaan yang menunggu dalam bahasa baru.
+  useEffect(() => {
+    const s = r.current
+    if (!s.active || s.lang === voiceLang) return
+    s.lang = voiceLang
+    if (live.current.aiMode === 'listen') {
+      if (s.status === 'listening') beginListening()
+      return
+    }
+    if (s.ending) return
+    // Sedang berpikir atau menjalankan aksi: jawaban berikutnya memakai bahasa baru, diawali konfirmasi
+    if (s.status === 'thinking') {
+      s.announceLang = true
+      return
+    }
+    s.announceLang = false
+    s.cancelSpeech?.()
+    s.cancelSpeech = null
+    const out = switchTo(s.lang, s.ctx)
+    s.ctx = out.ctx
+    say(out.reply)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [voiceLang])
+
+  // Tab (context) diganti di tengah call: assistant berhenti, mengonfirmasi,
+  // lalu membacakan briefing tab baru dan tawaran pertamanya.
+  function rebrief() {
+    const s = r.current
+    s.retab = false
+    s.cancelSpeech?.()
+    s.cancelSpeech = null
+    const o = openingFor(live.current.tab, s.lang, { done: s.ctx.done, switched: true })
+    s.ctx = o.ctx
+    say(o.reply)
+  }
+
+  const tabKey = JSON.stringify(tab)
+  useEffect(() => {
+    const s = r.current
+    if (!s.active || s.tabKey === tabKey) return
+    s.tabKey = tabKey
+    if (live.current.aiMode === 'listen' || s.ending) return
+    if (s.status === 'thinking') {
+      s.retab = true
+      return
+    }
+    rebrief()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tabKey])
 
   // Timer sesi
   const running = status !== 'idle' && status !== 'ended'

@@ -1,6 +1,8 @@
 # Voice Chat · CRM Concept
 
-Implementasi web dari screen "Voice Chat" (AI voice assistant untuk CRM) yang didesain di Figma.
+Implementasi web dari screen "Voice Chat" yang didesain di Figma: asisten suara untuk seller online
+UMKM Indonesia yang berjualan di Shopee dan TikTok Shop sekaligus. Data demo memakai toko fiktif
+**Nara Wear** (hoodie, kaos, hijab).
 Dibangun dengan React + Vite, tanpa library UI tambahan. Semua ikon berupa SVG inline dan
 orb gradien dibuat murni dengan CSS.
 
@@ -8,33 +10,41 @@ orb gradien dibuat murni dengan CSS.
 
 **Voice chat sungguhan** (Web Speech API bawaan browser, tanpa API key):
 
-- Tap mic untuk mulai: browser meminta izin mikrofon, assistant membacakan briefing sesuai tab, lalu mendengarkan
+- Tap mic untuk mulai: browser meminta izin mikrofon, assistant membacakan briefing toko sesuai tab, lalu mendengarkan
+- Bahasa percakapan: English atau Bahasa Indonesia (Voice Settings, "Voice language"). Pilihan ini mengatur pengenalan suara (`en-US` / `id-ID`), suara assistant, briefing, dan caption. UI tetap bahasa Inggris. Bahasa bisa diganti di tengah call: mic langsung mendengar bahasa baru, assistant mengonfirmasi singkat lalu mengulang pertanyaan yang menunggu dalam bahasa baru
 - Pengenalan suara real-time: ucapanmu tampil sebagai caption ("You"), lalu dijawab dan diucapkan ("Assistant") dengan teks tersorot kata per kata
 - Orb bereaksi pada suara: membesar dan menyala sesuai volume mic saat kamu bicara, berdenyut mengikuti ritme saat assistant bicara, bergerak pelan saat berpikir
 - AI Mode mengubah gaya jawaban: Brief answers (ringkas), Think it through (menimbang opsi lalu bertanya balik), Guide me (langkah demi langkah), Listen only (diam dan mencatat)
-- Assistant proaktif: setiap jawaban ditutup rekomendasi dan tawaran bantuan ("Want me to draft a check-in to Acme Co.?"). Jawab "yes" atau "no", lalu ia menindaklanjuti dengan langkah berikutnya (draft, kirim atau simpan, pengingat) dan menawarkan hal penting berikutnya
-- Ask Me First: saat kamu meminta aksi langsung ("send a follow up email"), assistant mengonfirmasi dulu. Jika dimatikan, aksi langsung dijalankan tanpa bertanya
+- Assistant proaktif: setiap jawaban ditutup rekomendasi dan tawaran bantuan ("Want me to get shipping labels ready for the 4 orders due by 2 PM?"). Jawab ya atau tidak, lalu ia menindaklanjuti dan menawarkan hal penting berikutnya
+- Lima skenario toko: pesanan mendesak (label pengiriman), chat soal ukuran (balas pakai size chart), stok menipis (sinkron stok di dua toko), komplain warna (tawarkan tukar, lalu label retur), dan rekap penjualan kemarin (informasi saja)
+- Ask Me First: aksi internal (label, sinkron stok) mengikuti toggle ini. Aksi yang terlihat pembeli (membalas chat, menawarkan tukar) **selalu** minta persetujuan, apa pun posisi toggle
 - Mute/unmute, akhiri sesi, mulai ulang, timer sesi, dan ucapan seperti "goodbye" juga mengakhiri sesi
-- Ringkasan sesi saat selesai: durasi, aksi, catatan, topik, rekomendasi berikutnya, transkrip, salin, unduh, dan rating
-- Toast beranimasi di atas area konten (titik turun lalu mekar menjadi pill). Aksi assistant bisa dibatalkan lewat tombol Undo atau dengan mengucapkan "undo that"
+- Ringkasan sesi saat selesai: durasi, Actions taken, Still waiting (yang belum ditangani lewat aksi), Check tomorrow, transkrip, salin, unduh, dan rating
+- Toast beranimasi di atas area konten (titik turun lalu mekar menjadi pill). Aksi assistant bisa dibatalkan lewat tombol Undo atau dengan mengucapkan "undo that" / "batalin"
 
-Contoh yang bisa diucapkan: "Which deals are waiting on a reply?", "Tell me about Acme", "What is due today?", "What should I do next?", "Send a follow up email", "Schedule a call with Globex", "Undo that". Saat ditawari bantuan, jawab "yes", "not now", atau pilihan seperti "send it now" / "keep it in drafts".
+Contoh yang bisa diucapkan:
+
+- **English:** "What orders are due today?", "Any unanswered chats?", "How's the black hoodie stock?", "Tell me about the complaint", "How were sales yesterday?", "Reply to the size questions", "Sync the stock", "Offer an exchange", "Undo that", "Goodbye". Saat ditawari bantuan: "yes", "sure", "not now".
+- **Bahasa Indonesia:** "Pesanan hari ini gimana?", "Ada chat apa aja?", "Gimana stok hoodie?", "Ada komplain?", "Rekap omzet kemarin dong", "Balas chat yang nanya ukuran", "Samakan stok", "Tawarkan tukar ke pembeli", "Batalin", "Udah dulu". Saat ditawari bantuan: "iya", "gas", "boleh", "sip", "nanti aja", "nggak usah".
 
 **UI lainnya:**
 
-- Live actions: panel kanan pindah ke tab Actions saat sesi dimulai. Setiap aksi tampil langkah demi langkah, tawaran yang menunggu jawaban muncul sebagai kartu "Needs your OK" (bisa dijawab lewat suara atau tombol), dan hasilnya bisa di-undo. Toast aksi hanya muncul kalau feed sedang tidak terlihat. Pertanyaan yang menunggu jawaban tampil sebagai toast yang tetap ada sampai dijawab, dan muncul lagi setelah toast lain selesai
-- Tab konteks (Everything / Deals / Contacts / Tasks) mengganti briefing pembuka
+- Live actions: panel kanan pindah ke tab Actions saat sesi dimulai. Setiap aksi tampil langkah demi langkah, tawaran yang menunggu jawaban muncul sebagai kartu "Needs your OK" (bisa dijawab lewat suara atau tombol), dan hasilnya bisa di-undo. Toast hasil aksi (dengan Undo) selalu muncul. Pertanyaan yang menunggu jawaban tampil sebagai toast yang tetap ada sampai dijawab (kecuali feed Actions sedang terlihat, karena tombolnya sudah ada di sana), dan muncul lagi setelah toast lain selesai
+- Tab konteks (Everything / Orders / Chats / Stock) mengganti briefing pembuka dan tawaran pertama. Kalau diganti di tengah call, assistant langsung membacakan briefing tab baru
+- Custom context (tombol "+"): pilih fokus (Orders, Chats, Stock, Complaints, Sales), toko, dan produk, atau mulai dari template. Pratinjau menunjukkan kalimat pembuka assistant. Maksimal 3, tersimpan di browser. Klik tab custom yang aktif untuk mengedit atau menghapus
+- Semua tab bisa di-drag untuk mengubah urutan (di HP: tekan lama). Tab custom bisa dilepas di zona merah di bawah layar untuk dihapus, lalu dikembalikan lewat Undo
 - Toggle Live Captions (menyembunyikan caption) dan Ask Me First
 - Search di menu kiri memfilter item navigasi
-- Responsif: di tablet Voice Settings ditumpuk di bawah kartu dan sidebar jadi drawer. Di mobile voice chat tampil layar penuh dengan caption 3 baris yang bergulir sendiri, dan Voice Settings serta Live actions dibuka sebagai bottom sheet (ikon gear atau ketuk toast persetujuan)
+- Responsif: di tablet Voice Settings ditumpuk di bawah kartu dan sidebar jadi drawer. Drawer dibuka di panel AI; tombol "‹ AI" membuka menu utama (Home, Orders, Products, dan seterusnya) sebagai pengganti icon rail. Di mobile voice chat tampil layar penuh dengan caption 3 baris yang bergulir sendiri, dan Voice Settings serta Live actions dibuka sebagai bottom sheet (ikon gear atau ketuk toast persetujuan)
 
 ## Catatan teknis voice
 
-- "Otak" jawabannya berbasis aturan dengan data CRM contoh (`src/voice/brain.js`), bukan model AI. Mau pakai AI sungguhan? Ganti fungsi `respond()` agar memanggil backend (jangan taruh API key di kode frontend).
+- "Otak" jawabannya berbasis aturan dengan data toko contoh dalam dua bahasa (`src/voice/brain.js`), bukan model AI. Konten percakapan (briefing, pertanyaan, jawaban, topik) punya versi EN dan ID; judul langkah di feed dan toast persetujuan tetap bahasa Inggris karena bagian dari UI. Mau pakai AI sungguhan? Ganti fungsi `respond()` agar memanggil backend (jangan taruh API key di kode frontend).
 - Butuh browser dengan `SpeechRecognition`: Chrome, Edge, Safari. Firefox belum didukung (akan muncul pesan).
 - Butuh HTTPS atau localhost agar mic bisa dipakai.
 - Privasi: pada Chrome dan Edge, audio untuk pengenalan suara diproses oleh layanan speech milik browser (server Google, Microsoft, atau Apple tergantung browser), bukan oleh proyek ini. Tidak ada audio atau teks yang dikirim ke server lain dan tidak ada yang disimpan.
-- Suara balasan memakai `speechSynthesis`; suara yang terdengar bergantung pada voice yang terpasang di perangkat.
+- Suara balasan memakai `speechSynthesis`; suara yang terdengar bergantung pada voice yang terpasang di perangkat. Untuk Bahasa Indonesia urutan pilihannya: voice neural ("Natural"/"Online", misalnya Microsoft Gadis di Edge), versi Enhanced/Premium, Google Bahasa Indonesia (Chrome), lalu Damayanti. Kalau tidak ada, browser memakai suara bawaannya untuk `id-ID`. Di Mac, Damayanti versi Enhanced bisa diunduh lewat System Settings > Accessibility > Spoken Content > System Voice > Manage Voices.
+- Kata serapan dan merek dieja ulang khusus untuk suara Indonesia ("Shopee" diucapkan "Syopi", "hoodie" jadi "hudi", "size chart" jadi "saiz cart"), daftarnya ada di `SAY_AS_ID` di `src/voice/speech.js`. Caption tetap menampilkan ejaan asli dan sorotan kata tetap pas.
 
 ## Menjalankan secara lokal
 
@@ -77,15 +87,17 @@ src/
   voice/
     useVoiceChat.js        # mesin status voice chat (mic, recognition, speaking)
     speech.js              # pembungkus Web Speech API + meter volume mic
-    brain.js               # jawaban demo berbasis aturan + data CRM contoh
+    brain.js               # jawaban demo berbasis aturan (EN + ID) + data toko Nara Wear
   components/
-    NavSide.jsx            # icon rail kiri + panel navigasi AI
+    NavSide.jsx            # icon rail kiri, panel navigasi AI, menu utama di drawer
     VoiceCard.jsx          # kartu sesi voice chat (orb, caption, kontrol)
     Orb.jsx                # orb kaca yang mengikuti level suara
-    SettingsPanel.jsx      # panel Voice Settings (AI Mode + Quick Settings)
+    SettingsPanel.jsx      # panel Voice Settings (Voice language + AI Mode + Quick Settings)
     SessionSummary.jsx     # ringkasan sesi setelah voice chat selesai
     Toast.jsx              # toast beranimasi (satu pill, dengan Undo)
     BottomSheet.jsx        # bottom sheet untuk panel kanan di mobile
     SidePanel.jsx          # panel kanan bertab: Settings | Actions
     ActionFeed.jsx         # Live actions: aksi assistant langkah demi langkah
+    ContextTabs.jsx        # deretan tab context: drag urutan, zona hapus, popover editor
+    ContextEditor.jsx      # form custom context (template, fokus, toko, produk, pratinjau)
 ```

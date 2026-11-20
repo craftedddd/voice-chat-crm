@@ -89,6 +89,8 @@
   --danger: var(--red-500);
   --danger-soft: var(--red-50);
   --danger-text: var(--red-700);
+  --danger-fade: rgba(255, 90, 76, 0.2);
+  --danger-fade-strong: rgba(255, 90, 76, 0.42);
   --info: var(--brand-500);
   --info-soft: var(--brand-100);
   --info-text: var(--brand-600);
@@ -153,6 +155,7 @@
   --shadow-brand: 0 8px 18px -10px rgba(75, 90, 228, 0.7);
   --shadow-toast: 0 12px 30px -12px rgba(23, 24, 28, 0.24), 0 0 0 0.5px rgba(23, 24, 28, 0.07);
   --shadow-sheet: 0 -6px 40px -14px rgba(23, 24, 28, 0.28);
+  --shadow-popover: 0 18px 44px -18px rgba(23, 24, 28, 0.3), 0 0 0 1px rgba(23, 24, 28, 0.05);
 
   /* ----------------------------------------------------------
      SPACING (wajib untuk komponen baru)
@@ -295,6 +298,23 @@ button {
   margin-bottom: 14px;
 }
 
+/* Judul panel AI di drawer: tombol kembali ke menu utama */
+.navpanel__back {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+  margin-left: calc(-1 * var(--s-1-5));
+  padding: var(--s-0-5) var(--s-2) var(--s-0-5) var(--s-0-5);
+  border-radius: var(--r-xs);
+  font: inherit;
+  letter-spacing: inherit;
+  color: var(--text);
+  transition: background var(--dur-fast) var(--ease);
+}
+
+.navpanel__back svg { color: var(--icon); }
+.navpanel__back:hover { background: var(--surface-field); }
+
 .navpanel__search {
   display: flex;
   align-items: center;
@@ -366,6 +386,13 @@ button {
 .navlist__item.is-active svg { color: var(--text-2); }
 
 .navlist__item--prefs { width: 100%; }
+
+.navlist__go {
+  margin-left: auto;
+  color: var(--text-faint);
+  display: grid;
+  place-items: center;
+}
 
 .navlist__chev {
   margin-left: auto;
@@ -472,6 +499,9 @@ button {
   color: var(--text-3);
   border: 1px solid transparent;
   transition: all var(--dur-fast) var(--ease);
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
 }
 
 .tab:hover { color: var(--text); }
@@ -488,6 +518,163 @@ button {
   color: var(--text-muted);
   display: grid;
   place-items: center;
+}
+
+/* ------------------------------------------------------------
+   Custom context: tab bisa di-drag, popover editor, zona hapus
+------------------------------------------------------------ */
+.ctxtabs { position: relative; }
+
+.tab__chev {
+  display: inline-block;
+  margin-left: var(--s-1);
+  margin-right: calc(-1 * var(--s-1-5));
+  vertical-align: -3px;
+  color: var(--text-faint);
+}
+
+.tab.is-placeholder { opacity: 0; }
+
+.tab--ghost {
+  position: fixed;
+  z-index: 70;
+  margin: 0;
+  pointer-events: none;
+  white-space: nowrap;
+  text-align: center;
+  transition: none;
+  cursor: grabbing;
+  color: var(--text);
+  background: var(--surface);
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow-popover);
+}
+
+.tab--ghost.is-doomed {
+  color: var(--danger-text);
+  border-color: var(--danger);
+  background: var(--danger-soft);
+}
+
+body.is-dragging-tab { cursor: grabbing; user-select: none; -webkit-user-select: none; }
+
+.ctxpop {
+  position: absolute;
+  z-index: 40;
+  width: min(384px, 100%);
+  margin-top: var(--s-2);
+  padding: var(--s-5);
+  background: var(--surface);
+  border-radius: var(--r-xl);
+  box-shadow: var(--shadow-popover);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  animation: ctxpop-in var(--dur-base) var(--ease);
+}
+
+@keyframes ctxpop-in {
+  from { opacity: 0; transform: translateY(calc(-1 * var(--s-1-5))); }
+}
+
+.ctxform { display: flex; flex-direction: column; gap: var(--s-4); }
+.ctxform__title {
+  font-size: var(--fs-lg);
+  font-weight: var(--fw-bold);
+  letter-spacing: var(--ls-tight);
+}
+.ctxform__sub { margin-top: var(--s-0-5); font-size: var(--fs-xs); color: var(--text-muted); }
+.ctxform__group { display: flex; flex-direction: column; gap: var(--s-2); }
+.ctxform__label { font-size: var(--fs-xs); font-weight: var(--fw-semibold); color: var(--text-3); }
+
+.ctxform__input {
+  width: 100%;
+  padding: var(--s-2-5) var(--s-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  font: inherit;
+  font-size: var(--fs-md);
+  color: var(--text);
+  outline: none;
+  transition: border-color var(--dur-fast) var(--ease);
+}
+.ctxform__input::placeholder { color: var(--text-faint); }
+.ctxform__input:focus { border-color: var(--accent); }
+
+.ctxform__seg { margin-bottom: 0; }
+.ctxform__error { font-size: var(--fs-xs); color: var(--danger-text); }
+
+.ctxform__preview {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+  padding: var(--s-3) var(--s-3-5);
+  border-radius: var(--r-md);
+  background: var(--surface-field);
+}
+.ctxform__preview p { font-size: var(--fs-sm); line-height: var(--lh-base); color: var(--text-2); }
+
+.ctxform__actions { display: flex; align-items: center; justify-content: flex-end; gap: var(--s-4); }
+.ctxform__actions .tbtn { height: 34px; padding: 0 var(--s-4); font-size: var(--fs-sm); }
+.tlink--danger { margin-right: auto; color: var(--danger-text); }
+.tlink--danger:hover { color: var(--danger); }
+
+.chip--toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-1);
+  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
+}
+.chip--toggle:hover { border-color: var(--text-faint); }
+.chip--toggle.is-on { background: var(--text); color: var(--surface); border-color: var(--text); }
+.chip--toggle:focus-visible,
+.ctxform .seg__btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Zona hapus: gradien merah dari bawah layar, muncul hanya saat tab custom di-drag */
+.delzone {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 60;
+  height: calc(var(--s-12) * 3);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--s-1-5);
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + var(--s-7));
+  background: linear-gradient(to top, var(--danger-fade), transparent);
+  color: var(--danger-text);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-semibold);
+  pointer-events: none;
+  animation: delzone-in var(--dur-base) var(--ease);
+}
+.delzone::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(to top, var(--danger-fade-strong), transparent);
+  opacity: 0;
+  transition: opacity var(--dur-fast) var(--ease);
+}
+.delzone svg { transition: transform var(--dur-fast) var(--spring); }
+.delzone.is-hot::before { opacity: 1; }
+.delzone.is-hot svg { transform: scale(1.2); }
+
+@keyframes delzone-in {
+  from { opacity: 0; transform: translateY(var(--s-6)); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ctxpop,
+  .delzone { animation: none; }
+  .delzone svg { transition: none; }
 }
 
 /* Content: kartu + panel kanan */
@@ -1091,6 +1278,25 @@ button {
 @keyframes slide-right {
   from { transform: translateX(-24px); opacity: 0; }
   to { transform: translateX(0); opacity: 1; }
+}
+
+/* Isi drawer berganti dengan geser pendek ke arah navigasi */
+.drawer__view--from-left { animation: drawer-from-left var(--dur-base) var(--ease); }
+.drawer__view--from-right { animation: drawer-from-right var(--dur-base) var(--ease); }
+
+@keyframes drawer-from-left {
+  from { transform: translateX(calc(-1 * var(--s-6))); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+@keyframes drawer-from-right {
+  from { transform: translateX(var(--s-6)); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .drawer__view--from-left,
+  .drawer__view--from-right { animation: none; }
 }
 
 .drawer__close {
@@ -1785,6 +1991,8 @@ button {
 
   .tabs { margin-bottom: 0; gap: 2px; }
   .tab { font-size: var(--fs-sm); padding: 7px 12.5px; }
+  /* 16px ke atas supaya Safari iOS tidak zoom saat field difokus */
+  .ctxform__input { font-size: var(--fs-xl); }
 
   /* Voice Settings disembunyikan, dibuka lewat bottom sheet */
   .sidecol { display: none; }

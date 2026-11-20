@@ -17,8 +17,22 @@ export function primeSpeech() {
   }
 }
 
-function pickVoice() {
+// Pilih suara sesuai bahasa percakapan. Kalau tidak ada suara yang cocok,
+// kembalikan null supaya browser memakai suara bawaan untuk u.lang.
+// Bahasa Indonesia: suara neural (Edge "Natural"/"Online") dan versi Enhanced/Premium
+// jauh lebih luwes dari Damayanti versi standar, jadi didahulukan.
+const ID_RANK = [/natural|neural|online/i, /premium|enhanced|ditingkatkan/i, /google/i, /damayanti/i, /gadis|ardi/i]
+function pickVoice(lang = 'en') {
   const voices = window.speechSynthesis.getVoices()
+  if (lang === 'id') {
+    // Beberapa Android lama memakai kode "in-ID" untuk Bahasa Indonesia
+    const id = voices.filter((v) => /^(id|in)[-_]/i.test(v.lang))
+    for (const re of ID_RANK) {
+      const v = id.find((x) => re.test(x.name))
+      if (v) return v
+    }
+    return id[0] || null
+  }
   const en = voices.filter((v) => /^en[-_]/i.test(v.lang))
   const prefer = ['Samantha', 'Google US English', 'Microsoft Aria', 'Microsoft Jenny', 'Karen', 'Daniel']
   for (const name of prefer) {
@@ -26,6 +40,56 @@ function pickVoice() {
     if (v) return v
   }
   return en.find((v) => /en[-_]US/i.test(v.lang)) || en[0] || null
+}
+
+// Ejaan khusus suara Indonesia untuk kata serapan dan merek yang sering salah dibaca
+// ("Shopee" jadi "syo-pe-e"). Hanya untuk suara; caption tetap memakai teks asli.
+const SAY_AS_ID = {
+  shopee: 'Syopi',
+  tiktok: 'Tik Tok',
+  hoodie: 'hudi',
+  'size chart': 'saiz cart',
+  size: 'saiz',
+  chat: 'cet',
+  oversell: 'ofersel',
+  restock: 'ristok',
+  rating: 'reting',
+  refund: 'rifan',
+  live: 'laif',
+  shop: 'syop',
+  standby: 'sten bai',
+}
+const WORD = /\b(size chart|[A-Za-z]+)\b/g
+
+/**
+ * Teks yang diucapkan + pemetaan posisi kembali ke teks caption,
+ * supaya sorotan kata per kata tetap pas walau ejaannya berbeda.
+ */
+function sayAs(text, lang) {
+  if (lang !== 'id') return { spoken: text, toShown: (n) => n }
+  let spoken = ''
+  let last = 0
+  const segs = []
+  for (const m of text.matchAll(WORD)) {
+    const w = m[0]
+    const rep = w === 'M' ? 'em' : SAY_AS_ID[w.toLowerCase()] // ukuran baju "M"
+    if (!rep || rep === w) continue
+    spoken += text.slice(last, m.index)
+    segs.push({ s: spoken.length, e: spoken.length + rep.length, to: m.index + w.length })
+    spoken += rep
+    last = m.index + w.length
+  }
+  spoken += text.slice(last)
+  const toShown = (n) => {
+    let delta = 0
+    for (const g of segs) {
+      if (n <= g.s) break
+      if (n < g.e) return g.to // di tengah kata yang dieja ulang: sorot seluruh kata
+      delta = g.to - g.e
+    }
+    return Math.min(text.length, n + delta)
+  }
+  return { spoken, toShown }
 }
 
 const CHARS_PER_SECOND = 15
@@ -61,9 +125,10 @@ function toChunks(text) {
  * Jika suara tidak mau mulai atau macet, ucapan disimulasikan agar alur tidak berhenti.
  * Mengembalikan fungsi cancel.
  */
-export function speak(text, { onProgress, onEnd }) {
+export function speak(text, { onProgress, onEnd, lang = 'en' }) {
   const synth = window.speechSynthesis
-  const chunks = toChunks(text)
+  const { spoken, toShown } = sayAs(text, lang)
+  const chunks = toChunks(spoken)
   let done = false
   let gotBoundary = false
   let ticker = null
@@ -90,8 +155,8 @@ export function speak(text, { onProgress, onEnd }) {
     ticker = setInterval(() => {
       if (done || gotBoundary) return
       const n = fromChar + Math.floor(((performance.now() - t0) / 1000) * CHARS_PER_SECOND)
-      if (n >= text.length) finish()
-      else onProgress(n, false)
+      if (n >= spoken.length) finish()
+      else onProgress(toShown(n), false)
     }, 120)
   }
 
@@ -109,10 +174,10 @@ export function speak(text, { onProgress, onEnd }) {
     }
 
     const u = new SpeechSynthesisUtterance(part)
-    u.lang = 'en-US'
+    u.lang = lang === 'id' ? 'id-ID' : 'en-US'
     u.rate = 1
     u.pitch = 1
-    const voice = pickVoice()
+    const voice = pickVoice(lang)
     if (voice) u.voice = voice
 
     u.onstart = () => {
@@ -128,7 +193,7 @@ export function speak(text, { onProgress, onEnd }) {
     }
     u.onboundary = (e) => {
       gotBoundary = true
-      onProgress(offset + wordEnd(part, e.charIndex), true)
+      onProgress(toShown(offset + wordEnd(part, e.charIndex)), true)
     }
     u.onend = next
     u.onerror = next

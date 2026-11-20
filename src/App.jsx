@@ -1,21 +1,60 @@
-import { useCallback, useEffect, useState } from 'react'
-import { IconRail, NavPanel } from './components/NavSide.jsx'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { IconRail, NavPanel, MainMenu } from './components/NavSide.jsx'
 import VoiceCard from './components/VoiceCard.jsx'
 import SidePanel from './components/SidePanel.jsx'
-import { PlusIcon, MenuIcon, CloseIcon, CogIcon } from './icons.jsx'
+import { MenuIcon, CloseIcon, CogIcon } from './icons.jsx'
 import useVoiceChat from './voice/useVoiceChat.js'
-import { BRIEFINGS } from './voice/brain.js'
+import { briefingFor } from './voice/brain.js'
 import { Toaster, useToaster } from './components/Toast.jsx'
 import BottomSheet from './components/BottomSheet.jsx'
+import ContextTabs from './components/ContextTabs.jsx'
+import ContextEditor from './components/ContextEditor.jsx'
 
-const TABS = ['Everything', 'Deals', 'Contacts', 'Tasks']
+const BUILTIN_TABS = ['Everything', 'Orders', 'Chats', 'Stock']
+const MAX_CUSTOM = 3
+
+// Custom context dan urutan tab disimpan di browser. Kalau storage tidak bisa dipakai, app tetap jalan.
+function useStored(key, fallback) {
+  const [value, setValue] = useState(() => {
+    try {
+      const raw = localStorage.getItem(key)
+      return raw ? JSON.parse(raw) : fallback
+    } catch {
+      return fallback
+    }
+  })
+  useEffect(() => {
+    try {
+      localStorage.setItem(key, JSON.stringify(value))
+    } catch {
+      /* abaikan */
+    }
+  }, [key, value])
+  return [value, setValue]
+}
+
+function useMedia(query) {
+  const [match, setMatch] = useState(() => window.matchMedia(query).matches)
+  useEffect(() => {
+    const mq = window.matchMedia(query)
+    const onChange = () => setMatch(mq.matches)
+    mq.addEventListener('change', onChange)
+    return () => mq.removeEventListener('change', onChange)
+  }, [query])
+  return match
+}
 
 export default function App() {
   // Konten & pengaturan
-  const [activeTab, setActiveTab] = useState('Everything')
+  const [activeTab, setActiveTab] = useState('Everything') // id tab: nama tab bawaan atau id custom
+  const [contexts, setContexts] = useStored('nara.contexts', []) // { id, name, focus, shop, products }
+  const [tabOrder, setTabOrder] = useStored('nara.tabOrder', BUILTIN_TABS)
+  const [editorFor, setEditorFor] = useState(null) // 'new' | id custom context | null
+  const mobile = useMedia('(max-width: 640px)')
   const [aiMode, setAiMode] = useState('brief')
   const [liveCaptions, setLiveCaptions] = useState(true)
   const [askFirst, setAskFirst] = useState(true)
+  const [voiceLang, setVoiceLang] = useState('en') // bahasa percakapan suara, UI tetap bahasa Inggris
 
   // Navigasi kiri
   const [audience, setAudience] = useState('Personal')
@@ -25,6 +64,9 @@ export default function App() {
 
   // Drawer navigasi untuk layar kecil
   const [navOpen, setNavOpen] = useState(false)
+  // Isi drawer: panel AI (default) atau menu utama. Arah dipakai untuk animasi geser.
+  const [drawerView, setDrawerView] = useState({ id: 'ai', from: null })
+  const drawerRef = useRef(null)
 
   // Bottom sheet Voice Settings (hanya mobile, dibuka lewat ikon gear)
   const [sheetOpen, setSheetOpen] = useState(false)
@@ -39,6 +81,82 @@ export default function App() {
   // Toast: satu pill beranimasi di atas area konten
   const toaster = useToaster()
   const showToast = toaster.api.show
+
+  // Tab context: bawaan + custom, mengikuti urutan yang disimpan
+  const tabs = (() => {
+    const all = [...BUILTIN_TABS.map((id) => ({ id, label: id })), ...contexts.map((c) => ({ id: c.id, label: c.name, custom: true }))]
+    const rank = (id) => {
+      const i = tabOrder.indexOf(id)
+      return i === -1 ? tabOrder.length + all.findIndex((t) => t.id === id) : i
+    }
+    return all.sort((a, b) => rank(a.id) - rank(b.id))
+  })()
+  const activeCtx = contexts.find((c) => c.id === activeTab) || (BUILTIN_TABS.includes(activeTab) ? activeTab : 'Everything')
+  const editing = editorFor && editorFor !== 'new' ? contexts.find((c) => c.id === editorFor) : null
+
+  const addContext = () => {
+    if (editorFor === 'new') return setEditorFor(null)
+    if (contexts.length >= MAX_CUSTOM) {
+      showToast({ kind: 'info', text: `You can have up to ${MAX_CUSTOM} custom contexts` })
+      return
+    }
+    setEditorFor('new')
+  }
+
+  const saveContext = (def) => {
+    if (def.id) {
+      setContexts((cs) => cs.map((c) => (c.id === def.id ? def : c)))
+    } else {
+      const id = `c${Date.now().toString(36)}`
+      setContexts((cs) => [...cs, { ...def, id }])
+      setTabOrder(tabs.map((t) => t.id).concat(id))
+      setActiveTab(id)
+    }
+    setEditorFor(null)
+  }
+
+  // Hapus custom context, bisa dibatalkan lewat Undo di toast
+  const deleteContext = (id) => {
+    const ctx = contexts.find((c) => c.id === id)
+    if (!ctx) return
+    const ids = tabs.map((t) => t.id)
+    const at = ids.indexOf(id)
+    setContexts((cs) => cs.filter((c) => c.id !== id))
+    setTabOrder(ids.filter((x) => x !== id))
+    if (activeTab === id) setActiveTab('Everything')
+    setEditorFor(null)
+    showToast({
+      kind: 'info',
+      text: `${ctx.name} deleted`,
+      key: `ctx-del:${id}`,
+      action: {
+        label: 'Undo',
+        onClick: () => {
+          setContexts((cs) => (cs.some((c) => c.id === id) ? cs : [...cs, ctx]))
+          setTabOrder((o) => {
+            const rest = o.filter((x) => x !== id)
+            return [...rest.slice(0, at), id, ...rest.slice(at)]
+          })
+        },
+        after: { text: `${ctx.name} restored` },
+      },
+    })
+  }
+
+  // Isi sheet terakhir dipertahankan selama animasi menutup
+  const lastEditor = useRef(null)
+  const editorNode = editorFor ? (
+    <ContextEditor
+      key={editorFor}
+      initial={editing}
+      lang={voiceLang}
+      takenNames={contexts.filter((c) => c.id !== editorFor).map((c) => c.name)}
+      onSave={saveContext}
+      onDelete={() => deleteContext(editorFor)}
+      onCancel={() => setEditorFor(null)}
+    />
+  ) : null
+  if (editorNode) lastEditor.current = editorNode
 
   // Panel kanan: Settings | Actions
   const [panelTab, setPanelTab] = useState('settings')
@@ -55,7 +173,7 @@ export default function App() {
   )
 
   // Voice chat sungguhan (mic + pengenalan suara + suara balasan)
-  const voice = useVoiceChat({ tab: activeTab, aiMode, askFirst, onToast: showToast, isFeedVisible })
+  const voice = useVoiceChat({ tab: activeCtx, aiMode, askFirst, voiceLang, onToast: showToast, isFeedVisible })
 
   // Saat sesi dimulai, panel pindah ke Actions (sekali per sesi; pilihan user setelahnya dihormati)
   useEffect(() => {
@@ -74,6 +192,16 @@ export default function App() {
     return () => window.removeEventListener('keydown', onKey)
   }, [])
 
+  // Drawer selalu dibuka di panel AI
+  useEffect(() => {
+    if (navOpen) setDrawerView({ id: 'ai', from: null })
+  }, [navOpen])
+
+  // Setelah pindah isi drawer, fokus ke judul baru (untuk keyboard dan screen reader)
+  useEffect(() => {
+    if (drawerView.from) drawerRef.current?.querySelector('[data-autofocus]')?.focus()
+  }, [drawerView])
+
   const navPanelProps = {
     audience,
     setAudience,
@@ -90,6 +218,8 @@ export default function App() {
   }
 
   const settingsProps = {
+    voiceLang,
+    setVoiceLang,
     aiMode,
     setAiMode,
     liveCaptions,
@@ -161,25 +291,24 @@ export default function App() {
           >
             <CogIcon size={21} />
           </button>
-          <p className="main__subtitle">Ask questions, talk through a deal, or get help using the CRM</p>
+          <p className="main__subtitle">Run your Shopee and TikTok Shop by voice</p>
         </header>
 
-        <div className="tabs" role="tablist" aria-label="Voice chat context">
-          {TABS.map((t) => (
-            <button
-              key={t}
-              role="tab"
-              aria-selected={activeTab === t}
-              className={`tab ${activeTab === t ? 'is-active' : ''}`}
-              onClick={() => setActiveTab(t)}
-            >
-              {t}
-            </button>
-          ))}
-          <button className="tab tab--plus" aria-label="Add context" onClick={() => showToast('Custom contexts are coming soon')}>
-            <PlusIcon size={15} />
-          </button>
-        </div>
+        <ContextTabs
+          tabs={tabs}
+          activeId={typeof activeCtx === 'string' ? activeCtx : activeCtx.id}
+          onSelect={(id) => {
+            setActiveTab(id)
+            setEditorFor(null)
+          }}
+          onEdit={(id) => setEditorFor(editorFor === id ? null : id)}
+          onAdd={addContext}
+          onReorder={setTabOrder}
+          onDelete={deleteContext}
+          editorFor={editorFor}
+          editor={mobile ? null : editorNode}
+          onCloseEditor={() => setEditorFor(null)}
+        />
 
         <div className="content">
           <VoiceCard
@@ -192,7 +321,7 @@ export default function App() {
             supported={voice.supported}
             listenOnly={aiMode === 'listen'}
             liveCaptions={liveCaptions}
-            briefing={BRIEFINGS[activeTab]}
+            briefing={briefingFor(voiceLang, activeCtx)}
             getLevel={voice.getLevel}
             onStart={voice.start}
             onToggleMute={voice.toggleMute}
@@ -215,7 +344,24 @@ export default function App() {
             <button className="drawer__close" aria-label="Close menu" onClick={() => setNavOpen(false)}>
               <CloseIcon size={18} />
             </button>
-            <NavPanel {...navPanelProps} />
+            <div
+              key={drawerView.id}
+              className={`drawer__view ${drawerView.from ? `drawer__view--from-${drawerView.from}` : ''}`}
+              ref={drawerRef}
+            >
+              {drawerView.id === 'main' ? (
+                <MainMenu
+                  activeRail="ai"
+                  onOpen={() => setDrawerView({ id: 'ai', from: 'right' })}
+                  onToast={(text) => {
+                    setNavOpen(false)
+                    showToast(text)
+                  }}
+                />
+              ) : (
+                <NavPanel {...navPanelProps} onBack={() => setDrawerView({ id: 'main', from: 'left' })} />
+              )}
+            </div>
           </div>
         </div>
       )}
@@ -223,6 +369,15 @@ export default function App() {
       {/* Voice Settings sebagai bottom sheet (mobile) */}
       <BottomSheet open={sheetOpen} onClose={closeSheet} label={panelTab === 'actions' ? 'Live actions' : 'Voice settings'}>
         <SidePanel {...panelProps} />
+      </BottomSheet>
+
+      {/* Editor custom context sebagai bottom sheet (mobile) */}
+      <BottomSheet
+        open={mobile && !!editorFor}
+        onClose={() => setEditorFor(null)}
+        label={editorFor === 'new' ? 'New context' : 'Edit context'}
+      >
+        {mobile && (editorNode || lastEditor.current)}
       </BottomSheet>
 
       <Toaster {...toaster} />

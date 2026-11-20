@@ -3,10 +3,9 @@ import Orb from './Orb.jsx'
 import { AI_MODES } from './SettingsPanel.jsx'
 import {
   MicIcon,
-  SendIcon,
-  BellIcon,
-  FileTextIcon,
-  CalendarIcon,
+  ChatIcon,
+  PackageIcon,
+  ShirtIcon,
   CopyIcon,
   DownloadIcon,
   ThumbUpIcon,
@@ -16,7 +15,7 @@ import {
 
 const still = () => 0
 
-const ACTION_ICON = { send: SendIcon, remind: BellIcon, calendar: CalendarIcon, draft: FileTextIcon }
+const ACTION_ICON = { label: PackageIcon, reply: ChatIcon, stock: ShirtIcon }
 const WHO = { user: 'You', ai: 'Assistant', note: 'Note' }
 
 export function formatTime(total) {
@@ -46,8 +45,12 @@ function summaryText(sum, withTranscript) {
     sum.notes.forEach((n) => lines.push(`- ${n}`))
     lines.push('')
   }
-  if (sum.topics.length) lines.push(`Topics: ${sum.topics.join(', ')}`, '')
-  if (sum.nextUp) lines.push(`Up next: ${sum.nextUp}`, '')
+  if (sum.waiting.length) {
+    lines.push('Still waiting')
+    sum.waiting.forEach((w) => lines.push(`- ${w}`))
+    lines.push('')
+  }
+  if (sum.tomorrow) lines.push(`Check tomorrow: ${sum.tomorrow}`, '')
   if (withTranscript && sum.transcript.length) {
     lines.push('Transcript')
     sum.transcript.forEach((x) => lines.push(`[${formatTime(x.t)}] ${WHO[x.who]}: ${x.text}`))
@@ -150,7 +153,7 @@ export default function SessionSummary({ summary: sum, onRestart, onToast }) {
                 {sum.actions.length ? (
                   <ul className="alist">
                     {sum.actions.map((a, i) => {
-                      const Icon = ACTION_ICON[a.kind] || FileTextIcon
+                      const Icon = ACTION_ICON[a.kind] || PackageIcon
                       return (
                         <li key={i} className="alist__item">
                           <span className="alist__icon">
@@ -182,26 +185,24 @@ export default function SessionSummary({ summary: sum, onRestart, onToast }) {
               </section>
             )}
 
-            {sum.topics.length > 0 && (
+            {sum.waiting.length > 0 && (
               <section className="sblock">
-                <h3 className="sblock__title">Topics</h3>
-                <div className="chips">
-                  {sum.topics.map((t) => (
-                    <span className="chip" key={t}>
-                      {t}
-                    </span>
+                <h3 className="sblock__title">Still waiting</h3>
+                <ul className="nlist">
+                  {sum.waiting.map((w) => (
+                    <li key={w}>{w}</li>
                   ))}
-                </div>
+                </ul>
               </section>
             )}
 
-            {sum.nextUp && (
+            {sum.tomorrow && (
               <div className="nextup">
                 <span className="nextup__icon">
                   <ZapIcon size={14} />
                 </span>
                 <p>
-                  <strong>Up next:</strong> {sum.nextUp}
+                  <strong>Check tomorrow:</strong> {sum.tomorrow}
                 </p>
               </div>
             )}

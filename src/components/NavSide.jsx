@@ -1,15 +1,15 @@
 import {
   HomeIcon,
   ContactsIcon,
-  TasksIcon,
   ChatIcon,
-  CalendarIcon,
   BotIcon,
   ChartIcon,
   GridIcon,
   GearIcon,
   SearchIcon,
   ChevronDownIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
   InfoIcon,
   ZapIcon,
   ClockIcon,
@@ -17,23 +17,28 @@ import {
   LotusLogo,
   AvatarIcon,
   DoubleCheckIcon,
+  PackageIcon,
+  ShirtIcon,
 } from '../icons.jsx'
 
 const railItems = [
   { id: 'home', Icon: HomeIcon, label: 'Home' },
-  { id: 'contacts', Icon: ContactsIcon, label: 'Contacts' },
-  { id: 'tasks', Icon: TasksIcon, label: 'Tasks' },
-  { id: 'chat', Icon: ChatIcon, label: 'Messages' },
-  { id: 'calendar', Icon: CalendarIcon, label: 'Calendar' },
+  { id: 'orders', Icon: PackageIcon, label: 'Orders' },
+  { id: 'products', Icon: ShirtIcon, label: 'Products' },
+  { id: 'chat', Icon: ChatIcon, label: 'Chats' },
+  { id: 'customers', Icon: ContactsIcon, label: 'Customers' },
   { id: 'ai', Icon: BotIcon, label: 'AI' },
   { id: 'reports', Icon: ChartIcon, label: 'Reports' },
   { id: 'apps', Icon: GridIcon, label: 'Apps' },
 ]
 
+// "Orders are coming soon", "Home is coming soon"
+const soon = (label) => `${label} ${label.endsWith('s') ? 'are' : 'is'} coming soon`
+
 export function IconRail({ activeRail, onRail, onToast }) {
   return (
     <aside className="rail">
-      <div className="rail__logo" title="Compro CRM">
+      <div className="rail__logo" title="Nara Wear">
         <LotusLogo />
       </div>
       <nav className="rail__nav" aria-label="Main navigation">
@@ -43,7 +48,7 @@ export function IconRail({ activeRail, onRail, onToast }) {
             className={`rail__btn ${activeRail === id ? 'is-active' : ''}`}
             aria-label={label}
             title={label}
-            onClick={() => (id === 'ai' ? onRail(id) : onToast(`${label} is coming soon`))}
+            onClick={() => (id === 'ai' ? onRail(id) : onToast(soon(label)))}
           >
             <Icon size={19} />
           </button>
@@ -71,6 +76,35 @@ export function IconRail({ activeRail, onRail, onToast }) {
   )
 }
 
+/** Menu utama di drawer (layar kecil): isi rail dengan label. Hanya AI yang punya halaman. */
+export function MainMenu({ activeRail, onOpen, onToast }) {
+  return (
+    <div className="navpanel">
+      <h2 className="navpanel__title" tabIndex={-1} data-autofocus>
+        Nara Wear
+      </h2>
+      <nav className="navlist" aria-label="Main navigation">
+        {railItems.map(({ id, Icon, label }) => (
+          <button
+            key={id}
+            className={`navlist__item ${activeRail === id ? 'is-active' : ''}`}
+            aria-current={activeRail === id ? 'page' : undefined}
+            onClick={() => (id === 'ai' ? onOpen(id) : onToast(soon(label)))}
+          >
+            <Icon size={16} />
+            <span>{label}</span>
+            {id === 'ai' && (
+              <span className="navlist__go">
+                <ChevronRightIcon size={15} />
+              </span>
+            )}
+          </button>
+        ))}
+      </nav>
+    </div>
+  )
+}
+
 const navItems = [
   { id: 'assistant', label: 'Assistant', Icon: BotIcon },
   { id: 'suggestions', label: 'Suggestions', Icon: InfoIcon },
@@ -91,6 +125,7 @@ export function NavPanel({
   prefsOpen,
   setPrefsOpen,
   onToast,
+  onBack,
 }) {
   const q = query.trim().toLowerCase()
   const visibleItems = navItems.filter((i) => i.label.toLowerCase().includes(q))
@@ -99,7 +134,16 @@ export function NavPanel({
 
   return (
     <div className="navpanel">
-      <h2 className="navpanel__title">AI</h2>
+      {onBack ? (
+        <h2 className="navpanel__title">
+          <button className="navpanel__back" onClick={onBack} aria-label="Back to main menu" data-autofocus>
+            <ChevronLeftIcon size={17} />
+            <span>AI</span>
+          </button>
+        </h2>
+      ) : (
+        <h2 className="navpanel__title">AI</h2>
+      )}
 
       <label className="navpanel__search">
         <SearchIcon size={15} />

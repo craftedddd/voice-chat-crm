@@ -1,9 +1,9 @@
 import { ExternalIcon, WaveIcon, DoubleCheckIcon } from '../icons.jsx'
 
 export const AI_MODES = [
-  { id: 'brief', title: 'Brief answers', desc: 'Get answers about your customers and deals' },
+  { id: 'brief', title: 'Brief answers', desc: 'Quick answers about orders, chats, and stock' },
   { id: 'think', title: 'Think it through', desc: 'AI asks and weighs options' },
-  { id: 'guide', title: 'Guide me', desc: 'Step by step help in the CRM' },
+  { id: 'guide', title: 'Guide me', desc: 'Step by step help running your shop' },
   { id: 'listen', title: 'Listen only', desc: 'AI stays quiet, writes notes' },
 ]
 
@@ -21,7 +21,14 @@ function Toggle({ on, onChange, label }) {
   )
 }
 
+export const VOICE_LANGS = [
+  { id: 'en', label: 'English' },
+  { id: 'id', label: 'Bahasa Indonesia' },
+]
+
 export default function SettingsPanel({
+  voiceLang,
+  setVoiceLang,
   aiMode,
   setAiMode,
   liveCaptions,
@@ -49,6 +56,21 @@ export default function SettingsPanel({
         >
           <WaveIcon size={18} />
         </button>
+      </div>
+
+      <h3 className="settings__label">Voice language</h3>
+      <div className="seg" role="radiogroup" aria-label="Voice language">
+        {VOICE_LANGS.map((l) => (
+          <button
+            key={l.id}
+            role="radio"
+            aria-checked={voiceLang === l.id}
+            className={`seg__btn ${voiceLang === l.id ? 'is-active' : ''}`}
+            onClick={() => setVoiceLang(l.id)}
+          >
+            {l.label}
+          </button>
+        ))}
       </div>
 
       <h3 className="settings__label">AI Mode</h3>

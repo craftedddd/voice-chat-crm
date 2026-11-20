@@ -31,6 +31,23 @@ export const ContactsIcon = (p) => (
   </Svg>
 )
 
+// Paket (Orders)
+export const PackageIcon = (p) => (
+  <Svg {...p}>
+    <path d="M11 21.7a2 2 0 0 0 2 0l7-4a2 2 0 0 0 1-1.7V8a2 2 0 0 0-1-1.7l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.7Z" />
+    <path d="M12 22V12" />
+    <path d="m3.3 7 7.7 4.7a2 2 0 0 0 2 0L20.7 7" />
+    <path d="m7.5 4.3 9 5.1" />
+  </Svg>
+)
+
+// Baju (Products)
+export const ShirtIcon = (p) => (
+  <Svg {...p}>
+    <path d="M20.4 3.5 16 2a4 4 0 0 1-8 0L3.6 3.5a2 2 0 0 0-1.3 2.2l.6 3.5a1 1 0 0 0 1 .8H6v10a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V10h2.1a1 1 0 0 0 1-.8l.6-3.5a2 2 0 0 0-1.3-2.2Z" />
+  </Svg>
+)
+
 export const TasksIcon = (p) => (
   <Svg {...p}>
     <rect x="3.5" y="3.5" width="17" height="17" rx="3" />
@@ -95,6 +112,18 @@ export const SearchIcon = (p) => (
 export const ChevronDownIcon = (p) => (
   <Svg {...p}>
     <path d="m6.5 9.5 5.5 5.5 5.5-5.5" />
+  </Svg>
+)
+
+export const ChevronLeftIcon = (p) => (
+  <Svg {...p}>
+    <path d="m14.5 6.5-5.5 5.5 5.5 5.5" />
+  </Svg>
+)
+
+export const ChevronRightIcon = (p) => (
+  <Svg {...p}>
+    <path d="m9.5 6.5 5.5 5.5-5.5 5.5" />
   </Svg>
 )
 
@@ -288,5 +317,14 @@ export const ThumbDownIcon = (p) => (
 export const CheckIcon = (p) => (
   <Svg {...p}>
     <path d="m4.5 12.5 5 5 10-11" />
+  </Svg>
+)
+
+export const TrashIcon = (p) => (
+  <Svg {...p}>
+    <path d="M4.5 7h15" />
+    <path d="M9.5 7V5.2c0-.7.5-1.2 1.2-1.2h2.6c.7 0 1.2.5 1.2 1.2V7" />
+    <path d="m6.5 7 .8 11.6c.1 1 .9 1.9 2 1.9h5.4c1.1 0 1.9-.9 2-1.9L17.5 7" />
+    <path d="M10.2 11v5.5M13.8 11v5.5" />
   </Svg>
 )

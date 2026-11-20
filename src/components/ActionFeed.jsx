@@ -2,10 +2,9 @@ import { useEffect, useRef, useState } from 'react'
 import { CheckIcon } from '../icons.jsx'
 
 const OPEN_SOON = {
-  draft: 'Drafts are coming soon',
-  send: 'Inbox is coming soon',
-  remind: 'Tasks are coming soon',
-  calendar: 'Calendar is coming soon',
+  label: 'Orders are coming soon',
+  reply: 'Chats are coming soon',
+  stock: 'Products are coming soon',
 }
 // Langkah tetap terlihat sebentar setelah selesai, lalu item menyusut jadi satu baris
 const COLLAPSE_MS = 1100

@@ -54,6 +54,8 @@ Riwayat audit dan alasan setiap penggabungan nilai: [docs/design-audit.md](docs/
 | Sukses | `--success` | `--success-soft` | `--success-text` | Selesai |
 | Peringatan | `--warning` | `--warning-soft` | `--warning-text` | Butuh persetujuan |
 | Bahaya | `--danger` | `--danger-soft` | `--danger-text` | Gagal |
+
+`--danger-fade` dan `--danger-fade-strong`: warna awal gradien merah zona hapus (biasa dan saat tab berada di atasnya). Hanya untuk zona hapus.
 | Info | `--info` | `--info-soft` | `--info-text` | Berjalan |
 
 ### Overlay dan glass
@@ -95,6 +97,7 @@ Letter spacing: `--ls-tight` untuk judul dan teks besar, `--ls-caps` untuk label
 | `--shadow-brand` | Tombol utama berwarna |
 | `--shadow-toast` | Toast |
 | `--shadow-sheet` | Bottom sheet |
+| `--shadow-popover` | Popover editor context, tab yang sedang di-drag |
 
 ### Spacing
 
@@ -133,10 +136,52 @@ Letter spacing: `--ls-tight` untuk judul dan teks besar, `--ls-caps` untuk label
 - Tampil selama ada tawaran yang menunggu jawaban dan feed Actions tidak terlihat (di mobile: sheet tertutup atau di tab Settings).
 - Toast lain boleh menggantikannya; setelah toast itu selesai, pertanyaannya muncul lagi.
 - Tombol = jawaban "ya". Mengetuk teks membuka tab Actions. Menolak cukup lewat suara atau di feed.
+- Toast hasil aksi ("4 shipping labels ready" + Undo) dan toast undo lewat suara selalu tampil, termasuk saat feed terlihat. Undo yang diklik langsung di feed tidak memunculkan toast.
 
 Pengecualian: koreografi toast (morph titik ke pill) memakai durasi literal karena terikat dengan timer di `Toast.jsx` (`T_DOT`, `T_CLOSE`, `T_LEAVE`). Ubah keduanya bersamaan.
 
 ---
+
+### Pola drawer navigasi (≤ 960px)
+
+- Drawer selalu dibuka di panel AI. Judulnya tombol "‹ AI" (`.navpanel__back`) yang membuka menu utama.
+- Menu utama berjudul "Nara Wear" dan berisi item rail dengan label, memakai `.navlist__item`. AI ditandai aktif dengan chevron kanan (`.navlist__go`) dan membuka panel AI lagi.
+- Item lain menutup drawer lalu memunculkan toast "… coming soon".
+- Pergantian isi drawer: geser pendek `--s-6` dan fade (`--dur-base`, `--ease`), arahnya mengikuti navigasi. Mati di `prefers-reduced-motion`.
+
+### Pola custom context
+
+- Tombol "+" di deretan tab membuka editor: popover di bawah tombol (desktop, `.ctxpop`) atau bottom sheet (≤ 640px). Maksimal 3 custom context, disimpan di localStorage.
+- Isi editor (`ContextEditor.jsx`): template ("Complaints & returns", "TikTok only", "Hijabs") yang mengisi form sekaligus, Name (terisi otomatis dari pilihan), Focus on (chip), Shop (`.seg`), Products (chip), dan pratinjau "Assistant opens with" yang memakai bahasa percakapan.
+- Chip pilihan memakai `.chip--toggle`; terpilih = pill gelap dengan centang (`.is-on`).
+- Tab custom yang aktif punya chevron. Klik tab itu lagi untuk membuka editor yang sama, dengan Save dan Delete (`.tlink--danger`).
+- Briefing custom context disusun dari fakta toko di `brain.js` (`FACTS`) yang cocok dengan fokus, toko, dan produk. Kalau tidak ada yang cocok, assistant bilang tidak ada yang perlu diurus lalu menawarkan hal penting di luar tampilan itu.
+- Tab diganti saat call: assistant berhenti, bilang "Okay, switching to …", lalu membacakan briefing tab baru tanpa hal yang sudah ditangani. Kalau sedang berpikir, briefing dibacakan setelah jawabannya selesai.
+
+### Pola drag tab
+
+- Semua tab bisa di-drag untuk mengubah urutan. Mouse: tekan lalu geser. Layar sentuh: tekan lama 0,4 detik (geser lebih cepat dari itu tetap scroll biasa). Keyboard: Alt + panah kiri/kanan.
+- Saat drag, tab tampil sebagai bayangan (`.tab--ghost`) di atas halaman, slotnya di deretan jadi kosong, dan tab lain bergeser mulus (`--dur-base`, `--ease`).
+- Hanya tab custom yang bisa dihapus. Saat tab custom di-drag, zona hapus (`.delzone`) muncul dari bawah layar: gradien merah dan ikon tempat sampah polos. Di atas zona, gradien menebal, ikon membesar, dan teks berubah jadi "Release to delete".
+- Tab bawaan hanya bisa diangkat sedikit dan tidak memunculkan zona hapus.
+- Hapus (lewat drag atau tombol Delete) tidak memakai dialog konfirmasi. Toast "… deleted" dengan Undo mengembalikan context ke posisi semula.
+
+### Aturan persetujuan aksi
+
+- **Aksi yang terlihat pembeli** (membalas chat, menawarkan tukar barang) **selalu** minta persetujuan dulu, apa pun posisi toggle Ask Me First. Detail kartunya menyebut "Buyer will see this".
+- **Aksi internal** (label pengiriman, sinkron stok, label retur) mengikuti toggle Ask Me First.
+- Semua aksi bisa dibatalkan, lewat Undo di feed atau toast, atau lewat suara ("undo that" / "batalin").
+- Penandanya ada di `brain.js`: langkah dengan `buyer: true`.
+
+### Bahasa
+
+- UI (label, tab, feed, toast, summary) selalu bahasa Inggris.
+- Bahasa percakapan suara (ucapan, briefing, caption) dipilih di Voice Settings: English atau Bahasa Indonesia, memakai `.seg`.
+- Bahasa bisa diganti di tengah call. Assistant berhenti, mengonfirmasi singkat dalam bahasa baru, lalu mengulang pertanyaan yang menunggu. Kalau sedang berpikir atau menjalankan aksi, jawaban berikutnya langsung memakai bahasa baru dan diawali konfirmasi itu.
+- Ucapan Indonesia memakai gaya lisan ("siapin", "udah", "nggak", "buat"), bukan bahasa tulis.
+- Merek dan kata serapan dieja ulang hanya untuk suara (`SAY_AS_ID` di `speech.js`). Caption tetap menampilkan ejaan asli.
+- Nominal di UI memakai format "Rp 4.2M" / "Rp 740K"; di ucapan Indonesia "4,2 juta", di ucapan Inggris "4.2 million rupiah".
+- Asal toko ditulis sebagai teks netral "Shopee" atau "TikTok", tanpa logo atau warna brand.
 
 ## 3. Komponen yang sudah ada
 
@@ -151,7 +196,7 @@ Pakai ulang komponen ini sebelum membuat yang baru.
 | Tombol utama | `.pbtn`, `.ctl--primary` | Satu per tampilan |
 | Kontrol voice | `.ctl`, `.ctl--mic` | Tombol bulat di bawah orb |
 | Toggle | `.toggle`, `.toggle__knob` | |
-| Item navigasi | `.navlist__item` | |
+| Item navigasi | `.navlist__item` | Juga dipakai di menu utama drawer (`MainMenu`) |
 | Kartu | `.voicecard` | Kartu utama dengan `--shadow-card` |
 | Statistik | `.stat` | Angka di summary |
 | Bottom sheet | `BottomSheet.jsx` | Panel dari bawah di mobile |
@@ -161,6 +206,9 @@ Pakai ulang komponen ini sebelum membuat yang baru.
 | Link teks | `.tlink`, `.tlink--accent` | Jawaban kedua, Open, Undo |
 | Toast | `Toast.jsx` | Satu pill, berbagai jenis. `setSticky()` untuk pertanyaan yang menunggu jawaban (ikon cincin biru, sama dengan titik "menunggu" di feed) |
 | Caption live | `LiveCaption` di `VoiceCard.jsx` | Jendela 3 baris tanpa scroll (`.capwin`) |
+| Tab context | `ContextTabs.jsx` | Deretan tab dengan drag, zona hapus, dan popover editor |
+| Editor context | `ContextEditor.jsx` | Form custom context, dipakai di popover dan bottom sheet |
+| Chip pilihan | `.chip--toggle` | Chip yang bisa dipilih, `.is-on` saat terpilih |
 
 ---
 
@@ -170,7 +218,7 @@ Pakai ulang komponen ini sebelum membuat yang baru.
 |---|---|
 | > 1220px | Tiga kolom: navigasi, konten, Voice Settings |
 | ≤ 1220px | Konten dan Voice Settings ditumpuk |
-| ≤ 960px | Panel navigasi jadi drawer |
+| ≤ 960px | Panel navigasi jadi drawer, dengan menu utama di balik tombol "‹ AI" |
 | ≤ 640px | Rail disembunyikan, voice chat layar penuh, Voice Settings di bottom sheet |
 
 Setiap screen baru dicek minimal di 1440, 900, dan 393px.

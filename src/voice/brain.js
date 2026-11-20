@@ -1,485 +1,728 @@
-// "Otak" demo: percakapan proaktif berbasis aturan dengan data CRM contoh.
-// Assistant memberi rekomendasi, menawarkan bantuan, menunggu izin user,
-// lalu menindaklanjuti dengan langkah berikutnya. Tidak memanggil AI eksternal.
+// "Otak" demo: asisten suara untuk seller online "Nara Wear" (Shopee + TikTok Shop).
+// Percakapan proaktif berbasis aturan: memberi rekomendasi, menawarkan bantuan,
+// menunggu izin user, lalu menindaklanjuti. Tidak memanggil AI eksternal.
+//
+// Bahasa percakapan: 'en' atau 'id'. Ucapan assistant, briefing, dan caption
+// mengikuti bahasa itu. WORK (feed) dan CARDS (toast persetujuan) tetap bahasa
+// Inggris karena bagian dari UI.
 
-// Briefing pembuka per tab. lead = bagian gelap, tail = bagian abu (gaya desain).
-export const BRIEFINGS = {
-  Everything: {
-    lead: 'You have three deals waiting on a reply. The biggest is Acme Co., worth $12,000',
-    tail: ', with no reply for nine days....',
-  },
-  Deals: {
-    lead: 'Pipeline looks healthy this week. Four deals moved into negotiation',
-    tail: ', and Northwind is ready for a proposal....',
-  },
-  Contacts: {
-    lead: 'You added six new contacts from the webinar. Two of them opened your follow-up',
-    tail: ' email earlier this morning....',
-  },
-  Tasks: {
-    lead: 'Eight tasks are due today. Three are quick calls you could finish',
-    tail: ' before your lunch break....',
-  },
-}
-
-export function briefingText(tab) {
-  const b = BRIEFINGS[tab] || BRIEFINGS.Everything
-  return (b.lead + b.tail).replace(/\.{2,}$/, '.')
-}
-
+const L = (v, lang) => (v && typeof v === 'object' && !Array.isArray(v) ? v[lang] ?? v.en : v)
 const rnd = (list) => list[Math.floor(Math.random() * list.length)]
 
 // ---------------------------------------------------------------------------
+// Briefing pembuka per tab. lead = bagian gelap, tail = bagian abu (gaya desain).
+// ---------------------------------------------------------------------------
+const BRIEFINGS = {
+  en: {
+    Everything: {
+      lead: 'Morning! 18 orders ship today, 4 of them by 2 PM.',
+      tail: ' 6 chats are unanswered, and the black hoodie in M is down to 3....',
+    },
+    Orders: {
+      lead: '18 orders need to ship today. 4 are due by 2 PM, 3 on Shopee and 1 on TikTok',
+      tail: ", so I'd start with those....",
+    },
+    Chats: {
+      lead: 'You have 6 unanswered chats. 4 of them are asking about sizes',
+      tail: ', and one buyer has a complaint about color....',
+    },
+    Stock: {
+      lead: 'The black hoodie in size M is down to 3, and it sold 9 yesterday',
+      tail: '. The rest of your stock looks fine for now....',
+    },
+  },
+  id: {
+    Everything: {
+      lead: 'Pagi! Hari ini 18 pesanan dikirim, 4 harus sebelum jam 2.',
+      tail: ' 6 chat belum dibalas, dan hoodie hitam M tinggal 3....',
+    },
+    Orders: {
+      lead: '18 pesanan harus dikirim hari ini. 4 batasnya jam 2 siang, 3 Shopee dan 1 TikTok',
+      tail: ', itu yang aku duluin....',
+    },
+    Chats: {
+      lead: 'Ada 6 chat yang belum dibalas. 4 di antaranya nanya soal ukuran',
+      tail: ', dan ada satu pembeli yang komplain soal warna....',
+    },
+    Stock: {
+      lead: 'Stok hoodie hitam size M tinggal 3, padahal kemarin laku 9',
+      tail: '. Stok lainnya masih aman....',
+    },
+  },
+}
+
+export function briefingFor(lang, tab) {
+  if (tab && typeof tab === 'object') return factBriefing(scopeOf(tab), [], lang, tab.shop)
+  const set = BRIEFINGS[lang] || BRIEFINGS.en
+  return set[tab] || set.Everything
+}
+
+export function briefingText(tab, lang = 'en') {
+  const b = briefingFor(lang, tab)
+  return (b.lead + b.tail).replace(/\.{2,}$/, '.')
+}
+
+// ---------------------------------------------------------------------------
+// Custom context: fakta toko dengan atribut fokus, toko, dan produk.
+// Context buatan user = { id, name, focus: [...], shop: 'both'|'shopee'|'tiktok', products: [] (kosong = semua) }.
+// Fakta yang cocok menyusun briefing pembuka dan urutan tawaran.
+// ---------------------------------------------------------------------------
+export const FOCUS_OPTIONS = [
+  { id: 'orders', label: 'Orders' },
+  { id: 'chats', label: 'Chats' },
+  { id: 'stock', label: 'Stock' },
+  { id: 'complaints', label: 'Complaints' },
+  { id: 'sales', label: 'Sales' },
+]
+export const SHOP_OPTIONS = [
+  { id: 'both', label: 'Both' },
+  { id: 'shopee', label: 'Shopee' },
+  { id: 'tiktok', label: 'TikTok' },
+]
+export const PRODUCT_OPTIONS = [
+  { id: 'hoodies', label: 'Hoodies' },
+  { id: 'tees', label: 'Tees' },
+  { id: 'hijabs', label: 'Hijabs' },
+]
+
+const FACTS = [
+  {
+    key: 'ship',
+    focus: 'orders',
+    shops: ['shopee', 'tiktok'],
+    products: ['hoodies', 'tees', 'hijabs'],
+    line: () => ({
+      en: '4 orders are due by 2 PM, 3 on Shopee and 1 on TikTok.',
+      id: '4 pesanan harus dikirim sebelum jam 2, 3 Shopee dan 1 TikTok.',
+    }),
+  },
+  {
+    key: 'chats',
+    focus: 'chats',
+    shops: ['shopee', 'tiktok'],
+    products: ['hoodies', 'tees'],
+    line: () => ({
+      en: '4 buyers are asking about hoodie and tee sizes.',
+      id: '4 pembeli nanya soal ukuran hoodie dan kaos.',
+    }),
+  },
+  {
+    key: 'stock',
+    focus: 'stock',
+    shops: ['shopee', 'tiktok'],
+    products: ['hoodies'],
+    line: () => ({ en: 'The black hoodie in M is down to 3.', id: 'Hoodie hitam size M tinggal 3.' }),
+  },
+  {
+    key: 'complaint',
+    focus: 'complaints',
+    shops: ['tiktok'],
+    products: ['hijabs'],
+    line: () => ({
+      en: 'One TikTok buyer says their hijab color looks different from the photo.',
+      id: 'Ada pembeli TikTok yang bilang warna hijabnya beda dari foto.',
+    }),
+  },
+  {
+    key: 'sales',
+    focus: 'sales',
+    shops: ['shopee', 'tiktok'],
+    products: ['hoodies', 'tees', 'hijabs'],
+    line: (shop) =>
+      shop === 'tiktok'
+        ? { en: 'Yesterday TikTok brought in 2.5 million rupiah, 60 percent of your sales.', id: 'Kemarin TikTok menghasilkan 2,5 juta, 60 persen dari penjualanmu.' }
+        : shop === 'shopee'
+          ? { en: 'Yesterday Shopee brought in 1.7 million rupiah, 40 percent of your sales.', id: 'Kemarin Shopee menghasilkan 1,7 juta, 40 persen dari penjualanmu.' }
+          : { en: 'Yesterday you had 31 orders worth 4.2 million rupiah, 60 percent from TikTok.', id: 'Kemarin ada 31 pesanan senilai 4,2 juta, 60 persennya dari TikTok.' },
+  },
+]
+
+// Cakupan tab bawaan (kunci antrean)
+const BUILTIN_SCOPE = {
+  Everything: ['ship', 'chats', 'stock', 'complaint'],
+  Orders: ['ship'],
+  Chats: ['chats', 'complaint'],
+  Stock: ['stock'],
+}
+
+/** Kunci fakta yang masuk cakupan sebuah tab (bawaan atau custom). */
+export function scopeOf(tab) {
+  if (!tab || typeof tab !== 'object') return BUILTIN_SCOPE[tab] || BUILTIN_SCOPE.Everything
+  const products = tab.products || []
+  return FACTS.filter(
+    (f) =>
+      (tab.focus || []).includes(f.focus) &&
+      (tab.shop === 'both' || !tab.shop || f.shops.includes(tab.shop)) &&
+      (products.length === 0 || f.products.some((p) => products.includes(p)))
+  ).map((f) => f.key)
+}
+
+/** Nama tab untuk ucapan dan ringkasan. */
+export const tabName = (tab) => (tab && typeof tab === 'object' ? tab.name : tab)
+
+const NOTHING_HERE = {
+  en: 'Nothing needs you in this view right now.',
+  id: 'Di tampilan ini lagi nggak ada yang perlu kamu urus.',
+}
+const ALL_HANDLED = { en: 'Everything in this view is handled.', id: 'Semua yang ada di sini udah beres.' }
+
+/** Briefing dari fakta yang cocok; yang sudah ditangani di sesi ini dilewati. */
+function factBriefing(scope, done, lang, shop) {
+  const lines = FACTS.filter((f) => scope.includes(f.key) && !done.includes(f.key)).map((f) => L(f.line(shop), lang))
+  if (!lines.length) return { lead: L(done.length ? ALL_HANDLED : NOTHING_HERE, lang), tail: '' }
+  return { lead: lines[0], tail: lines.length > 1 ? ` ${lines.slice(1).join(' ')}` : '' }
+}
+
+// ---------------------------------------------------------------------------
 // Langkah percakapan. Tiap langkah punya pertanyaan (ask) dan hasil jika user
-// menjawab ya/tidak (atau memilih salah satu opsi).
-// Hasil: { reply, toast?, next?: idLangkah, mark?: kunciSelesai }
+// menjawab ya/tidak. Hasil: { reply, toast?, next?: idLangkah, mark?: kunciSelesai }
+// buyer: true = aksi terlihat pembeli, SELALU minta persetujuan (abaikan Ask Me First).
 // ---------------------------------------------------------------------------
 const STEPS = {
-  offer_followup_acme: {
-    ask: [
-      'Want me to draft a short check-in email to Acme Co.?',
-      'Shall I draft a quick check-in for Acme Co. for you?',
-    ],
-    yes: {
-      reply: 'Done. I drafted a short check-in that mentions the proposal and asks one clear question.',
-      toast: 'Acme Co. check-in drafted',
-      next: 'ask_send_acme',
+  offer_ship: {
+    ask: {
+      en: ['Want me to get shipping labels ready for the 4 orders due by 2 PM?'],
+      id: ['Mau aku siapin label pengiriman buat 4 pesanan yang batasnya jam 2 siang?'],
     },
-    no: { reply: 'No problem.', next: 'offer_remind_acme' },
-  },
-  ask_send_acme: {
-    ask: ['Should I send it now, or keep it in your drafts?'],
-    retry: 'Sorry, should I send it now, or keep it in your drafts?',
-    choices: [
-      {
-        words: ['send', 'now', 'yes', 'yeah', 'sure', 'go ahead', 'ok', 'okay'],
-        out: {
-          reply: "Sent. I'll keep an eye out for their reply.",
-          toast: 'Email sent to Acme Co.',
-          next: 'offer_remind_acme_later',
-        },
+    short: { en: 'Want me to get those 4 shipping labels ready?', id: 'Mau aku siapin 4 label pengirimannya?' },
+    yes: {
+      reply: {
+        en: 'Done. 4 shipping labels are ready, 3 for Shopee and 1 for TikTok. Just pack them and hand them to the courier.',
+        id: 'Beres. 4 label pengiriman udah siap, 3 Shopee dan 1 TikTok. Tinggal dikemas dan diserahkan ke kurir.',
       },
-      {
-        words: ['keep', 'draft', 'drafts', 'later', 'save', 'no', 'nope', 'wait', 'hold'],
-        out: { reply: "Okay, it's saved in your drafts for whenever you're ready.", mark: 'acme' },
+      toast: '4 shipping labels ready',
+      mark: 'ship',
+    },
+    no: { reply: { en: "Okay, I'll leave those for you.", id: 'Oke, aku biarin dulu ya.' }, mark: 'ship' },
+  },
+  offer_chats: {
+    buyer: true,
+    ask: {
+      en: ['4 people are asking about sizes. Want me to reply with the size chart?'],
+      id: ['Ada 4 orang yang nanya soal ukuran. Mau aku balas pakai size chart?'],
+    },
+    short: { en: 'Want me to reply to the size questions with your size chart?', id: 'Mau aku balas pertanyaan ukurannya pakai size chart?' },
+    yes: {
+      reply: {
+        en: 'Sent. Each buyer got the size chart with the size they asked about highlighted.',
+        id: 'Udah terkirim. Tiap pembeli dapat size chart, dengan ukuran yang mereka tanyakan ditandai.',
       },
-    ],
-  },
-  offer_remind_acme: {
-    ask: ['Want me to remind you about Acme Co. tomorrow morning instead?'],
-    yes: { reply: "Done. I set a reminder for tomorrow at 9.", toast: 'Reminder set for 9:00 tomorrow', mark: 'acme' },
-    no: { reply: "Understood. I'll leave Acme Co. for now.", mark: 'acme' },
-  },
-  offer_remind_acme_later: {
-    ask: ["Want me to set a reminder in two days in case they don't reply?"],
-    yes: { reply: 'Done. The reminder is set for two days from now.', toast: 'Reminder set in 2 days', mark: 'acme' },
-    no: { reply: 'Okay, no reminder.', mark: 'acme' },
-  },
-  offer_call_globex: {
-    ask: [
-      'Want me to book a 15 minute call with Globex on your calendar for tomorrow at 10?',
-      'Shall I put a quick call with Globex on your calendar for tomorrow at 10?',
-    ],
-    yes: { reply: "Booked. It's on your calendar for tomorrow at 10.", toast: 'Globex call booked for tomorrow', mark: 'globex' },
-    no: { reply: "Alright, I'll skip Globex for now.", mark: 'globex' },
-  },
-  offer_proposal_northwind: {
-    ask: [
-      'Want me to prepare a proposal draft for Northwind from your standard template?',
-      'Shall I start a Northwind proposal from your usual template?',
-    ],
-    yes: {
-      reply: "Done. The draft is ready with your standard pricing. I'd review the totals before sending it.",
-      toast: 'Northwind proposal drafted',
-      mark: 'northwind',
+      toast: 'Replied to 4 size questions',
+      mark: 'chats',
     },
-    no: { reply: 'Okay, no rush on Northwind.', mark: 'northwind' },
+    no: { reply: { en: "Okay, I won't reply for now.", id: 'Oke, belum aku balas dulu.' }, mark: 'chats' },
   },
-  offer_outreach_webinar: {
-    ask: [
-      'Want me to draft a personal note to the two contacts who opened your email?',
-      'Shall I write a short personal note to the two who opened your email?',
-    ],
-    yes: {
-      reply: 'Done. Both notes mention the webinar topic they engaged with, so they should feel personal.',
-      toast: '2 outreach drafts saved',
-      mark: 'webinar',
+  offer_stock: {
+    ask: {
+      en: ["The black hoodie in M is down to 3. Want me to sync that stock across Shopee and TikTok so you don't oversell?"],
+      id: ['Stok hoodie hitam size M tinggal 3. Mau aku samain stoknya di Shopee dan TikTok biar nggak oversell?'],
     },
-    no: { reply: "Okay, I'll leave the webinar contacts for now.", mark: 'webinar' },
+    short: { en: 'Want me to sync the stock on both shops?', id: 'Mau aku samain stoknya di kedua toko?' },
+    yes: {
+      reply: {
+        en: "Done. Both shops now show 3 left, so you won't sell more than you have.",
+        id: 'Beres. Stok di kedua toko sekarang sama-sama 3, jadi nggak akan kejual lebih dari yang ada.',
+      },
+      toast: 'Stock synced on 2 shops',
+      mark: 'stock',
+    },
+    no: { reply: { en: 'Okay, I left the stock as it is.', id: 'Oke, stoknya aku biarin dulu.' }, mark: 'stock' },
   },
-  offer_plan_tasks: {
-    ask: [
-      'Want me to block 30 minutes this morning on your calendar for the three quick calls?',
-      'Shall I block some time this morning for those three quick calls?',
-    ],
-    yes: { reply: 'Blocked. I scheduled 30 minutes at 11 for your quick calls.', toast: '30 min blocked at 11:00', mark: 'tasks' },
-    no: { reply: "No problem, I'll leave your calendar as it is.", mark: 'tasks' },
+  offer_exchange: {
+    buyer: true,
+    ask: {
+      en: ['One buyer says the color looks different from the photo. Want me to offer an exchange?'],
+      id: ['Ada pembeli yang bilang warnanya beda dari foto. Mau aku tawarin tukar barang?'],
+    },
+    short: { en: 'Want me to offer an exchange?', id: 'Mau aku tawarin tukar barang?' },
+    yes: {
+      reply: {
+        en: "Sent. I apologized, offered an exchange for another color, and asked which one they'd like.",
+        id: 'Udah terkirim. Aku minta maaf, tawarin tukar ke warna lain, dan tanya warna mana yang dia mau.',
+      },
+      toast: 'Exchange offered to the buyer',
+      next: 'offer_return_label',
+    },
+    no: { reply: { en: "Okay, I'll leave that chat for you.", id: 'Oke, chat itu aku biarin dulu.' }, mark: 'complaint' },
+  },
+  offer_return_label: {
+    ask: {
+      en: ['Want me to create a return label so they can send it back?'],
+      id: ['Mau aku buatin label retur biar dia bisa kirim balik barangnya?'],
+    },
+    yes: {
+      reply: {
+        en: "Done. The return label is ready, and I'll send it once they pick a color.",
+        id: 'Beres. Label returnya udah siap, nanti aku kirim begitu dia pilih warnanya.',
+      },
+      toast: 'Return label created',
+      mark: 'complaint',
+    },
+    no: { reply: { en: "Okay, we'll wait for their reply first.", id: 'Oke, kita tunggu balasan dia dulu.' }, mark: 'complaint' },
   },
   offer_suggest: {
-    ask: ['Want me to suggest where to start?'],
-    yes: { reply: 'Sure.', next: 'SUGGEST' },
-    no: { reply: "No problem. I'm here whenever you need me." },
+    ask: { en: ['Want me to suggest where to start?'], id: ['Mau aku kasih saran mulai dari mana?'] },
+    yes: { reply: { en: 'Sure.', id: 'Oke.' }, next: 'SUGGEST' },
+    no: { reply: { en: "No problem. I'm here whenever you need me.", id: 'Oke, aku standby kalau butuh apa-apa.' } },
   },
 }
 
 // ---------------------------------------------------------------------------
-// Live actions: langkah kerja yang ditampilkan saat aksi berjalan.
-// Kunci = teks toast hasil aksi. title = judul saat berjalan, detail = setelah selesai.
+// Live actions: langkah kerja yang ditampilkan saat aksi berjalan (UI, bahasa Inggris).
+// Kunci = teks toast hasil aksi. key = item antrean yang ditangani (untuk Still waiting),
+// kind menentukan link Open, teks undo, dan ikon ringkasan.
 // ---------------------------------------------------------------------------
 const WORK = {
-  'Acme Co. check-in drafted': {
-    title: 'Drafting a check-in to Acme Co.',
-    steps: ['Read your last 3 emails with Acme Co.', 'Wrote a short check-in', 'Saved it to drafts'],
-    detail: 'In your drafts · mentions the proposal',
+  '4 shipping labels ready': {
+    key: 'ship',
+    kind: 'label',
+    title: 'Creating shipping labels',
+    steps: ['Checked ship-by times', 'Grouped 4 urgent orders', 'Created 4 shipping labels'],
+    detail: '3 Shopee, 1 TikTok · due 2:00 PM',
+    undone: 'Labels canceled',
   },
-  'Email sent to Acme Co.': {
-    title: 'Sending the check-in to Acme Co.',
-    steps: ['Checked the draft one more time', 'Sent it to your Acme Co. contact'],
-    detail: 'Sent · watching for a reply',
+  'Replied to 4 size questions': {
+    key: 'chats',
+    kind: 'reply',
+    title: 'Replying to size questions',
+    steps: ['Read 4 chats', 'Matched each to the size they asked', 'Sent replies'],
+    detail: 'Size chart sent to 4 buyers',
+    undone: 'Replies unsent',
   },
-  'Reminder set for 9:00 tomorrow': {
-    title: 'Setting a reminder for Acme Co.',
-    steps: ['Created a task for Acme Co.', 'Scheduled it for tomorrow at 9:00'],
-    detail: 'Tomorrow, 9:00',
+  'Stock synced on 2 shops': {
+    key: 'stock',
+    kind: 'stock',
+    title: 'Syncing stock',
+    steps: ['Checked stock on both shops', 'Updated both to 3'],
+    detail: 'Black hoodie M · 3 left on Shopee and TikTok',
+    undone: 'Stock change reverted',
   },
-  'Reminder set in 2 days': {
-    title: 'Setting a follow-up reminder',
-    steps: ['Created a follow-up task', 'Scheduled it for 2 days from now'],
-    detail: "Only if Acme Co. hasn't replied",
+  'Exchange offered to the buyer': {
+    key: 'complaint',
+    kind: 'reply',
+    title: 'Replying to the complaint',
+    steps: ['Read the complaint and photos', 'Drafted a reply with exchange options', 'Sent the reply'],
+    detail: 'TikTok · asked which color they want',
+    undone: 'Reply unsent',
   },
-  'Globex call booked for tomorrow': {
-    title: 'Booking a call with Globex',
-    steps: ['Checked your calendar for tomorrow', 'Found a free slot at 10:00', 'Sent the invite to Globex'],
-    detail: 'Tomorrow, 10:00 · 15 min',
-  },
-  'Northwind proposal drafted': {
-    title: 'Preparing the Northwind proposal',
-    steps: ['Opened your standard template', 'Pulled pricing from the deal', 'Wrote the scope section'],
-    detail: 'Draft ready · review the totals before sending',
-  },
-  '2 outreach drafts saved': {
-    title: 'Writing notes to webinar contacts',
-    steps: ['Found the 2 contacts who opened your email', 'Matched each note to their topic', 'Saved 2 drafts'],
-    detail: '2 drafts · each one personalized',
-  },
-  '30 min blocked at 11:00': {
-    title: 'Blocking time for your quick calls',
-    steps: ['Grouped your 3 quick calls', 'Found 30 free minutes at 11:00', 'Added the block to your calendar'],
-    detail: 'Today, 11:00 · 30 min',
+  'Return label created': {
+    key: 'complaint',
+    kind: 'label',
+    title: 'Creating a return label',
+    steps: ['Opened the order', 'Created a return label'],
+    detail: 'Ready to send once they pick a color',
+    undone: 'Return label canceled',
   },
 }
 
-// Kartu "Needs your OK" untuk tawaran yang sedang menunggu jawaban.
-// yes/no = label tombol, say = kalimat yang dikirim seolah diucapkan user.
+// Kartu "Needs your OK" (toast persetujuan dan feed). Label UI bahasa Inggris,
+// say = kalimat yang dikirim seolah diucapkan user, dalam bahasa percakapan.
+const NOT_NOW = { label: 'Not now', say: { en: 'Not now', id: 'Nanti aja' } }
 const CARDS = {
-  offer_followup_acme: {
-    kind: 'draft',
-    title: 'Draft a check-in to Acme Co.?',
-    detail: 'No reply for 9 days · $12,000 deal',
-    yes: { label: 'Draft it', say: 'Yes, draft it' },
-    no: { label: 'Not now', say: 'Not now' },
+  offer_ship: {
+    title: 'Create 4 shipping labels?',
+    detail: '3 Shopee, 1 TikTok · due 2:00 PM',
+    yes: { label: 'Create labels', say: { en: 'Yes, do it', id: 'Iya, gas' } },
+    no: NOT_NOW,
   },
-  ask_send_acme: {
-    kind: 'send',
-    title: 'Send the check-in to Acme Co.?',
-    detail: 'The draft is ready',
-    yes: { label: 'Send', say: 'Send it now' },
-    no: { label: 'Keep as draft', say: 'Keep it in drafts' },
+  offer_chats: {
+    title: 'Reply to 4 size questions?',
+    detail: 'Buyers will see this · Shopee and TikTok',
+    yes: { label: 'Send replies', say: { en: 'Yes, send them', id: 'Iya, kirim aja' } },
+    no: NOT_NOW,
   },
-  offer_remind_acme: {
-    kind: 'remind',
-    title: 'Remind you about Acme Co.?',
-    detail: 'Tomorrow at 9:00',
-    yes: { label: 'Set reminder', say: 'Yes, remind me' },
-    no: { label: 'Not now', say: 'Not now' },
+  offer_stock: {
+    title: 'Sync black hoodie M stock?',
+    detail: 'Set to 3 on Shopee and TikTok',
+    yes: { label: 'Sync stock', say: { en: 'Yes, sync it', id: 'Iya, samain' } },
+    no: NOT_NOW,
   },
-  offer_remind_acme_later: {
-    kind: 'remind',
-    title: 'Set a reminder in 2 days?',
-    detail: "In case Acme Co. doesn't reply",
-    yes: { label: 'Set reminder', say: 'Yes, set it' },
-    no: { label: 'No thanks', say: 'No' },
+  offer_exchange: {
+    title: 'Offer an exchange?',
+    detail: 'Buyer will see this · TikTok',
+    yes: { label: 'Offer exchange', say: { en: 'Yes, offer it', id: 'Boleh, tawarin' } },
+    no: NOT_NOW,
   },
-  offer_call_globex: {
-    kind: 'calendar',
-    title: 'Book a call with Globex?',
-    detail: 'Tomorrow, 10:00 · 15 min',
-    yes: { label: 'Book it', say: 'Yes, book it' },
-    no: { label: 'Not now', say: 'Not now' },
-  },
-  offer_proposal_northwind: {
-    kind: 'draft',
-    title: 'Draft the Northwind proposal?',
-    detail: 'From your standard template',
-    yes: { label: 'Draft it', say: 'Yes, draft it' },
-    no: { label: 'Not now', say: 'Not now' },
-  },
-  offer_outreach_webinar: {
-    kind: 'draft',
-    title: 'Write notes to 2 webinar contacts?',
-    detail: 'They opened your follow-up email',
-    yes: { label: 'Write them', say: 'Yes, write them' },
-    no: { label: 'Not now', say: 'Not now' },
-  },
-  offer_plan_tasks: {
-    kind: 'calendar',
-    title: 'Block 30 minutes for quick calls?',
-    detail: 'This morning at 11:00',
-    yes: { label: 'Block time', say: 'Yes, block it' },
-    no: { label: 'Not now', say: 'Not now' },
+  offer_return_label: {
+    title: 'Create a return label?',
+    detail: 'For the exchange request',
+    yes: { label: 'Create label', say: { en: 'Yes, create it', id: 'Iya, buatin' } },
+    no: { label: 'Not now', say: { en: 'Not yet', id: 'Nanti dulu' } },
   },
 }
 
 /** Kartu persetujuan untuk langkah yang sedang menunggu jawaban (atau null). */
-export function cardFor(stepId) {
-  return stepId && CARDS[stepId] ? { step: stepId, ...CARDS[stepId] } : null
+export function cardFor(stepId, lang = 'en') {
+  const c = stepId && CARDS[stepId]
+  if (!c) return null
+  return {
+    step: stepId,
+    title: c.title,
+    detail: c.detail,
+    yes: { label: c.yes.label, say: L(c.yes.say, lang) },
+    no: { label: c.no.label, say: L(c.no.say, lang) },
+  }
 }
 
+// Ucapan saat aksi dibatalkan, per jenis aksi
+const UNDO_SPEECH = {
+  label: { en: 'Okay, I canceled that label.', id: 'Oke, labelnya udah aku batalin.' },
+  reply: { en: 'Okay, I pulled that message back.', id: 'Oke, pesannya udah aku tarik.' },
+  stock: { en: 'Okay, I put the stock back the way it was.', id: 'Oke, stoknya udah aku balikin kayak semula.' },
+}
+export const undoReply = (kind, lang) =>
+  `${L(UNDO_SPEECH[kind] || UNDO_SPEECH.label, lang)} ${lang === 'id' ? 'Ada lagi?' : 'Anything else?'}`
+export const nothingToUndo = (lang) =>
+  lang === 'id' ? 'Belum ada yang bisa dibatalkan. Ada lagi?' : "There's nothing to undo yet. Anything else?"
+
+/** Info aksi (jenis, teks undo) dari teks toast hasil aksi. */
+export const workFor = (toast) => WORK[toast]
+
+// ---------------------------------------------------------------------------
 // Antrean rekomendasi: yang belum selesai ditawarkan berikutnya.
+// waiting = baris "Still waiting" di ringkasan (UI, bahasa Inggris).
+// ---------------------------------------------------------------------------
 const QUEUE = [
-  { key: 'acme', step: 'offer_followup_acme', lead: 'Acme Co. is still waiting on you.' },
-  { key: 'globex', step: 'offer_call_globex', lead: 'Globex has been quiet for four days too.' },
-  { key: 'northwind', step: 'offer_proposal_northwind', lead: 'Northwind is ready for a proposal.' },
-  { key: 'webinar', step: 'offer_outreach_webinar', lead: 'Two webinar contacts opened your email.' },
-  { key: 'tasks', step: 'offer_plan_tasks', lead: 'You still have three quick calls due today.' },
+  {
+    key: 'ship',
+    step: 'offer_ship',
+    lead: { en: 'The urgent orders come first.', id: 'Yang paling mendesak pesanan dulu.' },
+    waiting: '4 orders due by 2:00 PM · Rp 740K',
+  },
+  {
+    key: 'chats',
+    step: 'offer_chats',
+    lead: { en: 'Buyers are waiting on chats.', id: 'Ada pembeli yang nunggu dibalas.' },
+    waiting: '4 unanswered size questions',
+  },
+  {
+    key: 'stock',
+    step: 'offer_stock',
+    lead: { en: 'One item is running low.', id: 'Ada satu barang yang stoknya menipis.' },
+    waiting: 'Black hoodie M · only 3 left',
+  },
+  {
+    key: 'complaint',
+    step: 'offer_exchange',
+    lead: { en: 'A complaint needs a reply.', id: 'Ada komplain yang perlu dibalas.' },
+    waiting: '1 complaint about color · TikTok',
+  },
 ]
 
-const askOf = (id) => rnd(STEPS[id].ask)
+const askOf = (id, lang) => rnd(L(STEPS[id].ask, lang))
 
-function nextSuggestion(done) {
-  const item = QUEUE.find((q) => !done.includes(q.key))
+// Yang ada di cakupan tab aktif ditawarkan lebih dulu, baru sisanya
+function nextSuggestion(done, lang, scope = []) {
+  const item = QUEUE.find((q) => scope.includes(q.key) && !done.includes(q.key)) || QUEUE.find((q) => !done.includes(q.key))
   if (!item) return null
-  return { step: item.step, line: `${item.lead} ${askOf(item.step)}` }
+  return { step: item.step, line: `${L(item.lead, lang)} ${askOf(item.step, lang)}` }
 }
 
-const ALL_DONE = "That covers your urgent items. Anything else you'd like to look at?"
+const ALL_DONE = {
+  en: "That covers the urgent stuff. Anything else you'd like to check?",
+  id: 'Yang mendesak udah beres semua. Ada lagi yang mau dicek?',
+}
+// Bahasa diganti di tengah sesi: konfirmasi singkat, lalu ulangi pertanyaan yang menunggu
+const SWITCHED = { en: "Sure, let's continue in English.", id: 'Oke, kita lanjut pakai Bahasa Indonesia ya.' }
+export const switchedLine = (lang) => L(SWITCHED, lang)
+export function switchTo(lang, ctx) {
+  const head = L(SWITCHED, lang)
+  if (ctx.pending && STEPS[ctx.pending]) return { reply: `${head} ${askOf(ctx.pending, lang)}`, ctx }
+  const s = nextSuggestion(ctx.done, lang, ctx.scope)
+  if (s) return { reply: `${head} ${s.line}`, ctx: { ...ctx, pending: s.step } }
+  return { reply: `${head} ${L(ALL_DONE, lang).split('. ').pop()}`, ctx }
+}
+const CONNECT = { en: ['Next up:', 'One more thing:', 'While we are at it:'], id: ['Selanjutnya,', 'Satu lagi,', 'Sekalian,'] }
+
+// "Selanjutnya," diikuti huruf kecil; "Next up:" tetap huruf besar
+const join = (connector, line) =>
+  connector.endsWith(',') ? `${connector} ${line.charAt(0).toLowerCase()}${line.slice(1)}` : `${connector} ${line}`
 
 // Menyusun jawaban akhir + menentukan langkah berikutnya.
-function conclude(out, ctx) {
+function conclude(out, ctx, lang) {
   const done = out.mark && !ctx.done.includes(out.mark) ? [...ctx.done, out.mark] : ctx.done
-  let reply = out.reply
+  let reply = L(out.reply, lang)
   let pending = null
-
   if (out.next === 'SUGGEST') {
-    const s = nextSuggestion(done)
-    reply = s ? `${reply} ${s.line}` : `${reply} ${ALL_DONE}`
+    const s = nextSuggestion(done, lang, ctx.scope)
+    reply = s ? `${reply} ${s.line}` : `${reply} ${L(ALL_DONE, lang)}`
     pending = s ? s.step : null
   } else if (out.next) {
-    reply = `${reply} ${askOf(out.next)}`
+    reply = `${reply} ${askOf(out.next, lang)}`
     pending = out.next
   } else {
-    const s = nextSuggestion(done)
+    const s = nextSuggestion(done, lang, ctx.scope)
     if (s) {
-      reply = `${reply} ${rnd(['Next up:', 'One more thing:', 'While we are at it:'])} ${s.line}`
+      reply = `${reply} ${join(rnd(CONNECT[lang] || CONNECT.en), s.line)}`
       pending = s.step
     } else {
-      reply = `${reply} ${ALL_DONE}`
+      reply = `${reply} ${L(ALL_DONE, lang)}`
     }
   }
-  return { reply, toast: out.toast, work: out.toast ? WORK[out.toast] : undefined, ctx: { pending, done } }
+  return { reply, toast: out.toast, work: out.toast ? WORK[out.toast] : undefined, ctx: { ...ctx, pending, done } }
 }
 
-// User meminta aksi langsung. Ask Me First menentukan perlu konfirmasi atau tidak.
-function requestAction(stepId, askFirst, ctx) {
-  if (askFirst) {
-    return {
-      reply: `${rnd(['Sure.', 'Happy to.'])} ${askOf(stepId)}`,
-      ctx: { ...ctx, pending: stepId },
-    }
+// User meminta aksi langsung. Aksi yang terlihat pembeli selalu minta izin dulu;
+// aksi internal mengikuti toggle Ask Me First.
+function requestAction(stepId, askFirst, ctx, lang) {
+  if (askFirst || STEPS[stepId].buyer) {
+    const lead = lang === 'id' ? rnd(['Siap.', 'Boleh.']) : rnd(['Sure.', 'Happy to.'])
+    return { reply: `${lead} ${askOf(stepId, lang)}`, ctx: { ...ctx, pending: stepId } }
   }
-  const out = conclude(STEPS[stepId].yes, ctx)
-  return { ...out, reply: `${rnd(['On it.', 'Sure thing.'])} ${out.reply.replace(/^Done\.\s*/, '')}` }
+  const out = conclude(STEPS[stepId].yes, ctx, lang)
+  const lead = lang === 'id' ? rnd(['Oke, aku kerjakan.', 'Siap, langsung aku kerjakan.']) : rnd(['On it.', 'Sure thing.'])
+  return { ...out, reply: `${lead} ${out.reply.replace(/^(Done|Beres)\.\s*/, '')}` }
 }
 
 // ---------------------------------------------------------------------------
-// Topik informasi: tiap mode punya gaya sendiri, semuanya ditutup tawaran bantuan.
+// Topik informasi: tiap mode punya gaya sendiri, ditutup tawaran bantuan.
 // ---------------------------------------------------------------------------
 const TOPICS = {
-  waiting: {
-    step: 'offer_followup_acme',
-    brief: 'Three deals are waiting on a reply. Acme Co. is the oldest at nine days, so I would start there.',
-    think:
-      'Three deals are waiting: Acme Co. at $12,000, quiet for nine days, then Globex and Initech, both more recent. Acme carries the most money and the most risk, so nudging it first protects the most revenue, while the smaller two can safely wait a day.',
-    guide:
-      'Here is how I would catch up. First, start with Acme Co., the oldest. Second, send a short check-in. Third, set a reminder in case they stay quiet. I can handle the first two for you.',
+  orders: {
+    step: 'offer_ship',
+    en: {
+      brief: '18 orders need to ship today. The 4 due by 2 PM matter most, because late shipping hurts your shop rating.',
+      think:
+        "There are 18 orders today. 4 are due by 2 PM, 3 on Shopee and 1 on TikTok. Missing that cutoff costs you shop rating, while the other 14 have until tonight. So I'd clear the urgent 4 first, then batch the rest.",
+      guide:
+        "Here's how to get through today's orders. First, ship the 4 due by 2 PM. Second, print labels for the other 14 in one batch. Third, hand everything to the courier at once. I can do the first step now.",
+    },
+    id: {
+      brief: 'Ada 18 pesanan yang harus dikirim hari ini. Yang paling penting 4 pesanan dengan batas jam 2 siang, karena telat kirim bisa nurunin rating toko.',
+      think:
+        'Hari ini ada 18 pesanan. 4 harus dikirim sebelum jam 2 siang, 3 dari Shopee dan 1 dari TikTok. Kalau lewat batas, rating toko bisa turun, sedangkan 14 sisanya masih aman sampai malam. Jadi aku sarankan beresin 4 yang mendesak dulu, baru sisanya sekaligus.',
+      guide:
+        'Begini urutannya. Pertama, kirim 4 pesanan yang batasnya jam 2 siang. Kedua, cetak label buat 14 pesanan lainnya sekaligus. Ketiga, serahkan semuanya ke kurir dalam sekali jalan. Langkah pertama bisa aku kerjakan sekarang.',
+    },
   },
-  acme: {
-    step: 'offer_followup_acme',
-    brief: 'Acme Co. is worth $12,000 and has been silent for nine days since the proposal. A short check-in usually gets things moving.',
-    think:
-      'Acme Co. is $12,000 and quiet for nine days after the proposal. That often means it is stuck with another decision maker. A light check-in is low risk, while a call is warmer but heavier. I would lean toward the email first.',
-    guide:
-      'Here is how to unstick Acme Co. First, check the last email you sent. Second, send a short check-in that asks one clear question. Third, set a reminder for two days later.',
+  chats: {
+    step: 'offer_chats',
+    en: {
+      brief: '6 chats are waiting, and 4 are asking about sizes. Quick replies there usually turn into orders.',
+      think:
+        '6 chats are unanswered. 4 are size questions, which are easy to answer and close to buying. 1 is a complaint and 1 is a general question. Replying to the size questions first gets you the quickest sales.',
+      guide:
+        "Here's how to clear your chats. First, answer the 4 size questions with your size chart. Second, handle the complaint. Third, reply to the last general question. I can do the first one for you.",
+    },
+    id: {
+      brief: 'Ada 6 chat yang nunggu, 4 di antaranya nanya ukuran. Kalau cepat dibalas, biasanya langsung jadi pesanan.',
+      think:
+        'Ada 6 chat belum dibalas. 4 soal ukuran, gampang dijawab dan biasanya udah mau beli. 1 komplain dan 1 pertanyaan umum. Balas yang soal ukuran dulu, itu paling cepat jadi penjualan.',
+      guide:
+        'Begini cara beresin chat. Pertama, balas 4 pertanyaan ukuran pakai size chart. Kedua, tangani komplainnya. Ketiga, balas satu pertanyaan umum yang tersisa. Yang pertama bisa aku bantu.',
+    },
   },
-  pipeline: {
-    step: 'offer_proposal_northwind',
-    brief: 'Four deals moved into negotiation this week, and Northwind is ready for a proposal. Sending it soon keeps the momentum.',
-    think:
-      'Four deals are in negotiation, and Northwind is ready for a proposal. Sending quickly keeps momentum, though a day of tailoring could raise your odds. I would lean toward a draft today so you can still review it.',
-    guide:
-      'Here is how to move Northwind forward. First, generate a proposal from your template. Second, review the pricing. Third, send it. I can do the first step right now.',
+  stock: {
+    step: 'offer_stock',
+    en: {
+      brief: 'The black hoodie in M is down to 3 and sold 9 yesterday. If both shops still show old stock, you could sell more than you have.',
+      think:
+        'The black hoodie in M has 3 left and sells about 9 a day, so it could run out today. The real risk is overselling, because Shopee and TikTok each think they have more. Syncing stock now is the safe move, then plan a restock.',
+      guide:
+        "Here's what I'd do. First, sync the stock on both shops. Second, check whether other sizes are running low. Third, plan a restock for the weekend. I can do the sync now.",
+    },
+    id: {
+      brief: 'Hoodie hitam size M tinggal 3, kemarin laku 9. Kalau stok di dua toko belum sama, bisa kejual lebih dari yang ada.',
+      think:
+        'Hoodie hitam size M sisa 3, sehari laku sekitar 9, jadi bisa habis hari ini. Risikonya oversell, karena Shopee dan TikTok masing-masing masih mengira stoknya lebih banyak. Paling aman samain stoknya sekarang, lalu rencanakan restock.',
+      guide:
+        'Begini langkahnya. Pertama, samain stok di kedua toko. Kedua, cek apakah ukuran lain juga menipis. Ketiga, rencanakan restock buat akhir pekan. Sinkron stoknya bisa aku kerjakan sekarang.',
+    },
   },
-  contacts: {
-    step: 'offer_outreach_webinar',
-    brief: 'You added six contacts from the webinar, and two already opened your email. They are the warmest, so I would reach out to them first.',
-    think:
-      'Six contacts came from the webinar and two already opened your email. A personal note to those two should convert better than a broad message to all six, so I would start with them.',
-    guide:
-      'Here is how to work the webinar leads. First, start with the two who opened your email. Second, write a personal note that mentions the webinar. Third, follow up in two days. I can draft the notes.',
+  complaint: {
+    step: 'offer_exchange',
+    en: {
+      brief: 'One buyer on TikTok says the color looks different from the photo. Offering an exchange quickly usually keeps the review positive.',
+      think:
+        "One buyer says the color looks different from the photo. A refund closes it fast but loses the sale, while an exchange keeps the sale and usually the good review. I'd offer the exchange.",
+      guide:
+        "Here's how to handle it. First, apologize and offer an exchange. Second, create a return label once they agree. Third, ship the new color. I can send the first reply.",
+    },
+    id: {
+      brief: 'Ada pembeli di TikTok yang bilang warnanya beda dari foto. Kalau cepat ditawari tukar, biasanya ulasannya tetap bagus.',
+      think:
+        'Ada pembeli yang bilang warnanya beda dari foto. Refund memang cepat selesai tapi penjualannya hilang, sedangkan tukar barang menyelamatkan penjualan dan biasanya ulasannya tetap bagus. Aku sarankan tawarin tukar.',
+      guide:
+        'Begini cara menanganinya. Pertama, minta maaf dan tawarin tukar barang. Kedua, buatin label retur setelah dia setuju. Ketiga, kirim warna yang baru. Balasan pertamanya bisa aku kirim.',
+    },
   },
-  tasks: {
-    step: 'offer_plan_tasks',
-    brief: 'Eight tasks are due today, and three are quick calls. I would knock those out first to clear your plate.',
-    think:
-      'Eight tasks are due today. Clearing the three quick calls first builds momentum, while the five larger ones may deserve your sharpest hours. I would do the calls first thing.',
-    guide:
-      'Here is a simple plan. First, sort by due date. Second, finish the three quick calls. Third, block time for the five larger ones. I can block the call time for you.',
+  // Rekap: informasi saja, tanpa aksi. Setelahnya assistant menawarkan rekomendasi berikutnya.
+  recap: {
+    step: null,
+    en: {
+      brief: 'Yesterday you had 31 orders worth 4.2 million rupiah. TikTok brought in 60 percent.',
+      think:
+        'Yesterday you had 31 orders worth 4.2 million rupiah, and 60 percent came from TikTok. Your live sessions are pulling more weight than your Shopee listings, so it may be worth going live again tonight.',
+      guide:
+        "Here's yesterday in short. First, 31 orders came in. Second, they were worth 4.2 million rupiah. Third, TikTok brought in 60 percent.",
+    },
+    id: {
+      brief: 'Kemarin ada 31 pesanan dengan total 4,2 juta. 60 persennya dari TikTok.',
+      think:
+        'Kemarin ada 31 pesanan dengan total 4,2 juta, dan 60 persennya dari TikTok. Live di TikTok kelihatannya lebih ngangkat penjualan dibanding listing Shopee, jadi mungkin layak live lagi malam ini.',
+      guide: 'Ringkasnya begini. Pertama, ada 31 pesanan. Kedua, totalnya 4,2 juta. Ketiga, 60 persennya dari TikTok.',
+    },
   },
 }
 
-function topicReply(key, mode, ctx) {
+function topicReply(key, mode, ctx, lang) {
   const t = TOPICS[key]
-  const body = t[mode] || t.brief
-  return { reply: `${body} ${askOf(t.step)}`, ctx: { ...ctx, pending: t.step } }
+  const set = t[lang] || t.en
+  const body = set[mode] || set.brief
+  // Topik sudah menjelaskan masalahnya, jadi pakai pertanyaan versi pendek supaya tidak berulang
+  if (t.step) return { reply: `${body} ${L(STEPS[t.step].short, lang) || askOf(t.step, lang)}`, ctx: { ...ctx, pending: t.step } }
+  const s = nextSuggestion(ctx.done, lang, ctx.scope)
+  return s
+    ? { reply: `${body} ${join(rnd(CONNECT[lang] || CONNECT.en), s.line)}`, ctx: { ...ctx, pending: s.step } }
+    : { reply: body, ctx: { ...ctx, pending: null } }
 }
 
 // ---------------------------------------------------------------------------
-// Utilitas pencocokan
+// Utilitas pencocokan (bahasa Inggris dan Indonesia santai)
 // ---------------------------------------------------------------------------
 const norm = (s) => s.toLowerCase().replace(/[^a-z0-9$' ]/g, ' ').replace(/\s+/g, ' ').trim()
 const any = (t, list) => list.some((w) => new RegExp(`\\b${w}\\b`).test(t))
-const YES = /^(yes|yeah|yep|yup|sure|ok|okay|go ahead|do it|please|please do|sounds good|that works|let's do it|lets do it|absolutely|of course|why not)\b/
-const NO = /^(no|nope|nah|not now|not yet|don't|do not|never mind|maybe later|skip|leave it)\b/
 
-export function openingFor(tab) {
-  const stepByTab = {
-    Everything: 'offer_followup_acme',
-    Deals: 'offer_proposal_northwind',
-    Contacts: 'offer_outreach_webinar',
-    Tasks: 'offer_plan_tasks',
+const YES =
+  /^(yes|yeah|yep|yup|sure|ok|okay|go ahead|do it|please|please do|sounds good|that works|let's do it|lets do it|absolutely|of course|why not|iya|iyaa|ya|yaa|boleh|gas|gass|gaskan|oke|oke deh|okey|sip|siap|lanjut|lanjutkan|kirim aja|mau|yuk|ayo|bisa|tentu|silakan)\b/
+const NO =
+  /^(no|nope|nah|not now|not yet|don't|do not|never mind|maybe later|skip|leave it|nggak|ngga|gak|ga|enggak|engga|tidak|nanti aja|nanti dulu|nanti|jangan dulu|jangan|ga usah|gak usah|nggak usah|belum)\b/
+const UNDO = /\b(undo|take (that|it) back|revert that|cancel that|batalin|batalkan|nggak jadi|gak jadi|ga jadi|enggak jadi|tidak jadi|ga jadi deh)\b/
+const BYE = [
+  'goodbye', 'bye', 'hang up', "that's all", 'end call', 'end the call',
+  'udah dulu', 'sudah dulu', 'udahan', 'cukup', 'cukup dulu', 'dadah', 'dah dulu', 'makasih udah', 'makasih ya udah',
+]
+const THANKS = ['thanks', 'thank you', 'cheers', 'makasih', 'terima kasih', 'trims', 'tengkyu']
+
+const ELSEWHERE = { en: 'Outside this view:', id: 'Di luar itu,' }
+// Tab diganti di tengah call: konfirmasi singkat, lalu briefing tab baru
+const SWITCHED_TAB = { en: (n) => `Okay, switching to ${n}.`, id: (n) => `Oke, pindah ke ${n}.` }
+
+/**
+ * Briefing pembuka + tawaran pertama untuk sebuah tab.
+ * done = yang sudah ditangani di sesi ini (dilewati), switched = dipanggil karena tab diganti saat call.
+ */
+export function openingFor(tab, lang = 'en', { done = [], switched = false } = {}) {
+  const scope = scopeOf(tab)
+  const custom = tab && typeof tab === 'object'
+  const handWritten = !custom && !done.length // briefing tab bawaan di awal sesi
+  const b = handWritten ? briefingFor(lang, tab) : factBriefing(scope, done, lang, custom ? tab.shop : undefined)
+  let brief = (b.lead + b.tail).replace(/\.{2,}$/, '.')
+  if (switched) brief = `${(SWITCHED_TAB[lang] || SWITCHED_TAB.en)(tabName(tab))} ${brief}`
+  const ctx = { pending: null, done, scope }
+  const item = QUEUE.find((q) => scope.includes(q.key) && !done.includes(q.key))
+  if (item) {
+    // Briefing dari fakta sudah menyebut masalahnya, jadi pakai pertanyaan versi pendek
+    const ask = handWritten ? askOf(item.step, lang) : L(STEPS[item.step].short, lang) || askOf(item.step, lang)
+    return { reply: `${brief} ${ask}`, ctx: { ...ctx, pending: item.step } }
   }
-  const step = stepByTab[tab] || 'offer_followup_acme'
-  return {
-    reply: `${briefingText(tab)} ${askOf(step)}`,
-    ctx: { pending: step, done: [] },
-  }
+  // Tidak ada yang bisa dikerjakan di tab ini: tawarkan hal penting di luar cakupannya
+  const s = nextSuggestion(done, lang)
+  if (s) return { reply: `${brief} ${join(L(ELSEWHERE, lang), s.line)}`, ctx: { ...ctx, pending: s.step } }
+  return { reply: `${brief} ${L(ALL_DONE, lang).split('. ').pop()}`, ctx }
 }
 
 /**
- * respond({ text, mode, askFirst, tab, ctx })
- * -> { reply, ctx, toast?, endCall? }
+ * respond({ text, mode, askFirst, tab, ctx, lang })
+ * -> { reply, ctx, toast?, work?, endCall?, undo? }
  */
-export function respond({ text, mode, askFirst, tab, ctx: prev }) {
+export function respond({ text, mode, askFirst, tab, ctx: prev, lang = 'en' }) {
   const t = norm(text)
   const ctx = prev || { pending: null, done: [] }
+  const id = lang === 'id'
 
-  // 0) Batalkan aksi terakhir ("undo that"); eksekusinya ada di useVoiceChat
-  if (/\b(undo|take (that|it) back|revert that|cancel that)\b/.test(t)) {
+  // 0) Batalkan aksi terakhir ("undo that" / "batalin"); eksekusinya ada di useVoiceChat
+  if (UNDO.test(t)) {
     return { undo: true, reply: '', ctx: { ...ctx, pending: null } }
   }
 
   // 1) Jawaban untuk tawaran / pertanyaan sebelumnya
   if (ctx.pending && STEPS[ctx.pending]) {
     const step = STEPS[ctx.pending]
-    if (step.choices) {
-      const c = step.choices.find((x) => any(t, x.words))
-      if (c) return conclude(c.out, ctx)
-    } else if (YES.test(t)) {
-      return conclude(step.yes, ctx)
-    } else if (NO.test(t)) {
-      return conclude(step.no, ctx)
-    }
+    if (YES.test(t)) return conclude(step.yes, ctx, lang)
+    if (NO.test(t)) return conclude(step.no, ctx, lang)
   }
 
   // 2) Percakapan umum
-  if (any(t, ['goodbye', 'bye', 'hang up', "that's all", 'end call', 'end the call'])) {
-    return { reply: 'Okay, talk to you soon.', endCall: true, ctx: { ...ctx, pending: null } }
+  if (any(t, BYE)) {
+    return { reply: id ? 'Oke, sampai nanti ya.' : 'Okay, talk soon.', endCall: true, ctx: { ...ctx, pending: null } }
   }
-  if (any(t, ['thanks', 'thank you', 'cheers'])) {
-    const s = nextSuggestion(ctx.done)
+  if (any(t, THANKS)) {
+    const s = nextSuggestion(ctx.done, lang, ctx.scope)
+    const thanks = id ? 'Sama-sama.' : 'Anytime.'
     return {
-      reply: s ? `Anytime. ${s.line}` : "Anytime. I'm here if you need anything else.",
+      reply: s ? `${thanks} ${s.line}` : `${thanks} ${id ? 'Aku standby kalau butuh apa-apa.' : "I'm here if you need anything else."}`,
       ctx: { ...ctx, pending: s ? s.step : null },
     }
   }
-  if (/^(hi|hello|hey|good morning|good afternoon)\b/.test(t)) {
-    return { reply: `Hi! ${askOf('offer_suggest')}`, ctx: { ...ctx, pending: 'offer_suggest' } }
+  if (/^(hi|hello|hey|good morning|good afternoon|halo|hai|hallo|pagi|siang|sore|selamat pagi|selamat siang)\b/.test(t)) {
+    return { reply: `${id ? 'Halo!' : 'Hi!'} ${askOf('offer_suggest', lang)}`, ctx: { ...ctx, pending: 'offer_suggest' } }
   }
-  if (t.includes('what can you do') || any(t, ['help', 'help me'])) {
-    return {
-      reply: `I can summarize your deals, contacts, and tasks, recommend what to do next, and take care of follow-ups once you say yes. ${askOf('offer_suggest')}`,
-      ctx: { ...ctx, pending: 'offer_suggest' },
-    }
+  if (t.includes('what can you do') || t.includes('bisa apa') || any(t, ['help', 'help me', 'bantu', 'bantuin'])) {
+    const intro = id
+      ? 'Aku bisa cek pesanan, chat, dan stok di Shopee dan TikTok Shop, kasih saran harus ngapain dulu, dan langsung kerjakan begitu kamu bilang iya.'
+      : 'I can check your orders, chats, and stock on Shopee and TikTok Shop, suggest what to do next, and take care of it once you say yes.'
+    return { reply: `${intro} ${askOf('offer_suggest', lang)}`, ctx: { ...ctx, pending: 'offer_suggest' } }
   }
 
   // 3) Minta rekomendasi
   if (
-    /what should i (do|start|focus)|recommend|suggest|prioriti[sz]e|where (do i|should i) start|what'?s next|what else|anything else|tell me more|\bnext\b/.test(t)
+    /what should i (do|start|focus)|recommend|suggest|prioriti[sz]e|where (do i|should i) start|what'?s next|what else|anything else|tell me more|\bnext\b|mulai dari mana|apa dulu|ngapain dulu|saran|selanjutnya|terus apa|apa lagi|yang penting/.test(t)
   ) {
-    return conclude({ reply: rnd(['Here is what I would do.', 'My suggestion:']), next: 'SUGGEST' }, ctx)
+    return conclude({ reply: id ? rnd(['Kalau aku, begini.', 'Saranku:']) : rnd(['Here is what I would do.', 'My suggestion:']), next: 'SUGGEST' }, ctx, lang)
   }
 
   // 4) User meminta aksi langsung
-  if (any(t, ['proposal']) && any(t, ['send', 'prepare', 'draft', 'create', 'write', 'start'])) {
-    return requestAction('offer_proposal_northwind', askFirst, ctx)
+  if (any(t, ['label', 'labels', 'resi', 'shipping', 'ship', 'pengiriman']) && any(t, ['create', 'make', 'print', 'prepare', 'get', 'siapkan', 'siapin', 'buat', 'bikin', 'cetak', 'print'])) {
+    return requestAction('offer_ship', askFirst, ctx, lang)
   }
-  if (any(t, ['note', 'notes', 'outreach', 'reach out']) && any(t, ['contact', 'contacts', 'webinar', 'write', 'draft', 'send'])) {
-    return requestAction('offer_outreach_webinar', askFirst, ctx)
+  if (any(t, ['reply', 'answer', 'respond', 'balas', 'bales', 'jawab']) && any(t, ['chat', 'chats', 'message', 'messages', 'pesan', 'pembeli', 'buyer', 'buyers', 'size', 'ukuran'])) {
+    return requestAction('offer_chats', askFirst, ctx, lang)
   }
-  if (any(t, ['schedule', 'book', 'set up']) && any(t, ['call', 'meeting', 'globex'])) {
-    return requestAction('offer_call_globex', askFirst, ctx)
+  if (any(t, ['sync', 'update', 'samakan', 'sinkron', 'sinkronkan', 'perbarui', 'samain']) && any(t, ['stock', 'stok'])) {
+    return requestAction('offer_stock', askFirst, ctx, lang)
   }
-  if (any(t, ['block', 'calendar']) && any(t, ['calls', 'time', 'tasks'])) {
-    return requestAction('offer_plan_tasks', askFirst, ctx)
-  }
-  if (any(t, ['remind', 'reminder', 'add a task', 'create a task', 'new task'])) {
-    return requestAction('offer_remind_acme', askFirst, ctx)
-  }
-  if (any(t, ['send', 'draft', 'email', 'follow up', 'follow-up', 'followup', 'check in', 'check-in'])) {
-    return requestAction('offer_followup_acme', askFirst, ctx)
+  if (any(t, ['exchange', 'tukar', 'return', 'retur']) && any(t, ['offer', 'tawarkan', 'tawarin', 'kasih', 'handle', 'urus', 'send', 'kirim'])) {
+    return requestAction('offer_exchange', askFirst, ctx, lang)
   }
 
   // 5) Informasi + rekomendasi
-  if (any(t, ['acme', 'biggest', 'largest', 'top deal'])) return topicReply('acme', mode, ctx)
-  if (any(t, ['waiting', 'reply', 'replies', 'responded', 'unanswered', 'quiet'])) return topicReply('waiting', mode, ctx)
-  if (any(t, ['pipeline', 'negotiation', 'northwind', 'deals', 'deal'])) return topicReply('pipeline', mode, ctx)
-  if (any(t, ['contact', 'contacts', 'webinar', 'leads', 'lead'])) return topicReply('contacts', mode, ctx)
-  if (any(t, ['task', 'tasks', 'due', 'to do', 'todo', 'calls', 'today'])) return topicReply('tasks', mode, ctx)
-  if (any(t, ['summary', 'brief me', 'overview', 'catch me up', "what's up", 'whats up', 'update'])) {
-    const o = openingFor(tab)
+  if (any(t, ['complaint', 'komplain', 'return', 'retur', 'exchange', 'tukar', 'refund', 'beda warna', 'warna'])) return topicReply('complaint', mode, ctx, lang)
+  if (any(t, ['recap', 'sales', 'revenue', 'yesterday', 'rekap', 'omzet', 'omset', 'penjualan', 'kemarin', 'laporan'])) return topicReply('recap', mode, ctx, lang)
+  // chat dicek sebelum stok: "chat soal ukuran" = chat, "stok size M" = stok
+  if (any(t, ['chat', 'chats', 'message', 'messages', 'pesan', 'balas', 'pertanyaan', 'questions', 'unanswered'])) return topicReply('chats', mode, ctx, lang)
+  if (any(t, ['stock', 'stok', 'size', 'ukuran', 'habis', 'restock', 'sold out', 'hoodie'])) return topicReply('stock', mode, ctx, lang)
+  if (any(t, ['order', 'orders', 'pesanan', 'orderan', 'resi', 'kirim', 'ship', 'shipping', 'label', 'labels', 'courier', 'kurir'])) return topicReply('orders', mode, ctx, lang)
+  if (any(t, ['summary', 'brief me', 'overview', 'catch me up', "what's up", 'whats up', 'update', 'ringkasan', 'gimana', 'kabar'])) {
+    const o = openingFor(tab, lang, { done: ctx.done })
     return { reply: o.reply, ctx: { ...ctx, pending: o.ctx.pending } }
   }
 
   // 6) Ya/tidak tanpa konteks
   if (YES.test(t)) {
-    return { reply: `Happy to help. ${askOf('offer_suggest')}`, ctx: { ...ctx, pending: 'offer_suggest' } }
+    return { reply: `${id ? 'Siap bantu.' : 'Happy to help.'} ${askOf('offer_suggest', lang)}`, ctx: { ...ctx, pending: 'offer_suggest' } }
   }
 
   return {
-    reply: `I'm a demo assistant, so I stick to deals, contacts, and tasks. ${askOf('offer_suggest')}`,
+    reply: `${id ? 'Aku asisten demo, jadi cuma bisa bantu soal pesanan, chat, dan stok.' : "I'm a demo assistant, so I stick to orders, chats, and stock."} ${askOf('offer_suggest', lang)}`,
     ctx: { ...ctx, pending: 'offer_suggest' },
   }
 }
 
 // ---------------------------------------------------------------------------
-// Ringkasan sesi: topik yang disebut dan rekomendasi berikutnya
+// Ringkasan sesi (UI, bahasa Inggris)
 // ---------------------------------------------------------------------------
-const ENTITIES = [
-  { label: 'Acme Co.', re: /\bacme\b/i },
-  { label: 'Globex', re: /\bglobex\b/i },
-  { label: 'Initech', re: /\binitech\b/i },
-  { label: 'Northwind', re: /\bnorthwind\b/i },
-  { label: 'Webinar contacts', re: /\bwebinar\b/i },
-  { label: "Today's tasks", re: /\b(tasks?|quick calls)\b/i },
-]
 
-/** Daftar topik (entitas CRM) yang muncul di teks percakapan. */
-export function topicsIn(text) {
-  return ENTITIES.filter((e) => e.re.test(text)).map((e) => e.label)
+/** Baris "Still waiting": yang belum ditangani lewat aksi di sesi ini (ditolak = masih menunggu). */
+export function stillWaiting(handled = []) {
+  const rows = QUEUE.filter((q) => !handled.includes(q.key)).map((q) => q.waiting)
+  // 6 chat belum dibalas: 4 soal ukuran (ditangani skenario chats), 1 komplain, 1 pertanyaan umum
+  rows.push('1 general question in chats')
+  return rows
 }
 
-/** Rekomendasi pertama yang belum ditangani di sesi ini. */
-export function nextUp(done = []) {
-  const item = QUEUE.find((q) => !done.includes(q.key))
-  return item ? item.lead : null
+/** Satu hal untuk dicek besok. */
+export function checkTomorrow(handled = []) {
+  if (handled.includes('complaint')) return 'See which color the buyer picked for the exchange'
+  return 'Restock the black hoodie in M before the weekend'
 }
