@@ -9,7 +9,8 @@ const OPEN_SOON = {
 // Langkah tetap terlihat sebentar setelah selesai, lalu item menyusut jadi satu baris
 const COLLAPSE_MS = 1100
 
-const clock = (t) => `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`
+// Detik call (angka) atau jam dari mode Chat (teks, misalnya "14:05")
+const clock = (t) => (typeof t === 'string' ? t : `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`)
 
 /** Titik di garis waktu. Bentuknya yang menandai status, bukan warnanya. */
 function Node({ state }) {

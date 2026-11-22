@@ -35,31 +35,37 @@ export default function SettingsPanel({
   setLiveCaptions,
   askFirst,
   setAskFirst,
+  showVoice = true, // pengaturan khusus voice tampil di mode Voice atau saat call berjalan
   onToast,
 }) {
+  // Listen only tidak berlaku di chat: chat memakai Brief answers
+  const shownMode = !showVoice && aiMode === 'listen' ? 'brief' : aiMode
+  const modes = showVoice ? AI_MODES : AI_MODES.filter((m) => m.id !== 'listen')
   return (
     <div className="settings">
       <div className="settings__head">
         <div>
-          <h2 className="settings__title">Voice Settings</h2>
+          <h2 className="settings__title">Assistant settings</h2>
           <button
             className="settings__link"
-            onClick={() => onToast('Full voice settings are coming soon')}
+            onClick={() => onToast('Full assistant settings are coming soon')}
           >
-            All voice settings <ExternalIcon size={12} />
+            All assistant settings <ExternalIcon size={12} />
           </button>
         </div>
-        <button
-          className="settings__wave"
-          aria-label="Play voice preview"
-          onClick={() => onToast('Playing a short voice preview...')}
-        >
-          <WaveIcon size={18} />
-        </button>
+        {showVoice && (
+          <button
+            className="settings__wave"
+            aria-label="Play voice preview"
+            onClick={() => onToast('Playing a short voice preview...')}
+          >
+            <WaveIcon size={18} />
+          </button>
+        )}
       </div>
 
-      <h3 className="settings__label">Voice language</h3>
-      <div className="seg" role="radiogroup" aria-label="Voice language">
+      <h3 className="settings__label">Language</h3>
+      <div className="seg" role="radiogroup" aria-label="Language">
         {VOICE_LANGS.map((l) => (
           <button
             key={l.id}
@@ -75,19 +81,19 @@ export default function SettingsPanel({
 
       <h3 className="settings__label">AI Mode</h3>
       <div className="modes" role="radiogroup" aria-label="AI mode">
-        {AI_MODES.map((m) => (
+        {modes.map((m) => (
           <button
             key={m.id}
             role="radio"
-            aria-checked={aiMode === m.id}
-            className={`mode ${aiMode === m.id ? 'is-active' : ''}`}
+            aria-checked={shownMode === m.id}
+            className={`mode ${shownMode === m.id ? 'is-active' : ''}`}
             onClick={() => setAiMode(m.id)}
           >
             <span className="mode__text">
               <span className="mode__title">{m.title}</span>
               <span className="mode__desc">{m.desc}</span>
             </span>
-            {aiMode === m.id && (
+            {shownMode === m.id && (
               <span className="mode__check">
                 <DoubleCheckIcon size={16} />
               </span>
@@ -99,13 +105,15 @@ export default function SettingsPanel({
       <h3 className="settings__label">Quick Settings</h3>
       <div className="quick">
         <div className="quick__row">
-          <span className="quick__chip">Live Captions</span>
-          <Toggle on={liveCaptions} onChange={setLiveCaptions} label="Live captions" />
-        </div>
-        <div className="quick__row">
           <span className="quick__chip">Ask Me First</span>
           <Toggle on={askFirst} onChange={setAskFirst} label="Ask me first" />
         </div>
+        {showVoice && (
+          <div className="quick__row">
+            <span className="quick__chip">Live Captions</span>
+            <Toggle on={liveCaptions} onChange={setLiveCaptions} label="Live captions" />
+          </div>
+        )}
       </div>
     </div>
   )

@@ -11,7 +11,7 @@ orb gradien dibuat murni dengan CSS.
 **Voice chat sungguhan** (Web Speech API bawaan browser, tanpa API key):
 
 - Tap mic untuk mulai: browser meminta izin mikrofon, assistant membacakan briefing toko sesuai tab, lalu mendengarkan
-- Bahasa percakapan: English atau Bahasa Indonesia (Voice Settings, "Voice language"). Pilihan ini mengatur pengenalan suara (`en-US` / `id-ID`), suara assistant, briefing, dan caption. UI tetap bahasa Inggris. Bahasa bisa diganti di tengah call: mic langsung mendengar bahasa baru, assistant mengonfirmasi singkat lalu mengulang pertanyaan yang menunggu dalam bahasa baru
+- Bahasa percakapan: English atau Bahasa Indonesia (Assistant settings, "Language"). Pilihan ini mengatur pengenalan suara (`en-US` / `id-ID`), suara assistant, briefing, dan caption. UI tetap bahasa Inggris. Bahasa bisa diganti di tengah call: mic langsung mendengar bahasa baru, assistant mengonfirmasi singkat lalu mengulang pertanyaan yang menunggu dalam bahasa baru
 - Pengenalan suara real-time: ucapanmu tampil sebagai caption ("You"), lalu dijawab dan diucapkan ("Assistant") dengan teks tersorot kata per kata
 - Orb bereaksi pada suara: membesar dan menyala sesuai volume mic saat kamu bicara, berdenyut mengikuti ritme saat assistant bicara, bergerak pelan saat berpikir
 - AI Mode mengubah gaya jawaban: Brief answers (ringkas), Think it through (menimbang opsi lalu bertanya balik), Guide me (langkah demi langkah), Listen only (diam dan mencatat)
@@ -27,7 +27,17 @@ Contoh yang bisa diucapkan:
 - **English:** "What orders are due today?", "Any unanswered chats?", "How's the black hoodie stock?", "Tell me about the complaint", "How were sales yesterday?", "Reply to the size questions", "Sync the stock", "Offer an exchange", "Undo that", "Goodbye". Saat ditawari bantuan: "yes", "sure", "not now".
 - **Bahasa Indonesia:** "Pesanan hari ini gimana?", "Ada chat apa aja?", "Gimana stok hoodie?", "Ada komplain?", "Rekap omzet kemarin dong", "Balas chat yang nanya ukuran", "Samakan stok", "Tawarkan tukar ke pembeli", "Batalin", "Udah dulu". Saat ditawari bantuan: "iya", "gas", "gaskeun", "oke gas", "ya kerjakan", "kerjain aja", "langsung aja", "boleh", "sip", "yaudah", "gak papa", atau menolak dengan "nanti aja", "nggak usah", "ya nggak usah", "jangan dulu", "lain kali". Penolakan dicek lebih dulu, jadi "iya, nanti aja" dianggap menolak. Kalau ucapan pendek salah dengar, assistant memeriksa beberapa kemungkinan hasil dengar dari browser sebelum menyerah.
 
+**Mode Chat** (switch Chat | Voice di kiri baris tab, atau di tengah header di HP):
+
+- Ketik pertanyaan atau perintah yang sama dengan yang diucapkan. Jawabannya dari "otak" yang sama, aksi tampil di Live actions dan bisa di-undo
+- Jawaban dipisah jadi dua paragraf: yang sudah dikerjakan, lalu tawaran berikutnya dengan chip jawaban ("Create labels" / "Not now") di bawahnya
+- Satu percakapan untuk dua mode: transkrip call masuk ke chat sebagai bubble, dan yang sudah dikerjakan tetap diingat
+- Jawaban assistant ditulis kata demi kata setelah titik "mengetik". Saat call berjalan, bubble jawaban mengikuti suara yang sedang diucapkan
+- Pindah ke Voice setelah mengobrol di chat: layar Voice menampilkan pertanyaan terakhir ("Continuing from chat"), dan call dibuka dengan "Picking up from chat." tanpa membacakan briefing ulang
+- Call tetap berjalan saat pindah ke Chat. Penanda call di atas percakapan menampilkan durasi dan status, dengan tombol Mute dan End. Pesan yang diketik saat call dijawab dengan suara juga
+
 **UI lainnya:**
+
 
 - Live actions: panel kanan pindah ke tab Actions saat sesi dimulai. Setiap aksi tampil langkah demi langkah, tawaran yang menunggu jawaban muncul sebagai kartu "Needs your OK" (bisa dijawab lewat suara atau tombol), dan hasilnya bisa di-undo. Toast hasil aksi (dengan Undo) selalu muncul. Pertanyaan yang menunggu jawaban tampil sebagai toast yang tetap ada sampai dijawab (kecuali feed Actions sedang terlihat, karena tombolnya sudah ada di sana), dan muncul lagi setelah toast lain selesai
 - Tab konteks (Everything / Orders / Chats / Stock) mengganti briefing pembuka dan tawaran pertama. Kalau diganti di tengah call, assistant langsung membacakan briefing tab baru
@@ -35,7 +45,8 @@ Contoh yang bisa diucapkan:
 - Semua tab bisa di-drag untuk mengubah urutan (di HP: tekan lama). Tab custom bisa dilepas di zona merah di bawah layar untuk dihapus, lalu dikembalikan lewat Undo
 - Toggle Live Captions (menyembunyikan caption) dan Ask Me First
 - Search di menu kiri memfilter item navigasi
-- Responsif: di tablet Voice Settings ditumpuk di bawah kartu dan sidebar jadi drawer. Drawer dibuka di panel AI; tombol "‹ AI" membuka menu utama (Home, Orders, Products, dan seterusnya) sebagai pengganti icon rail. Di mobile voice chat tampil layar penuh dengan caption 3 baris yang bergulir sendiri, dan Voice Settings serta Live actions dibuka sebagai bottom sheet (ikon gear atau ketuk toast persetujuan)
+- Assistant settings: Language, AI Mode, dan Ask Me First berlaku untuk kedua mode. Listen only, Live Captions, dan pratinjau suara hanya tampil di mode Voice atau saat call berjalan
+- Responsif: di tablet Assistant settings ditumpuk di bawah kartu dan sidebar jadi drawer. Drawer dibuka di panel AI; tombol "‹ AI" membuka menu utama (Home, Orders, Products, dan seterusnya) sebagai pengganti icon rail. Di mobile voice chat tampil layar penuh dengan caption 3 baris yang bergulir sendiri, dan Assistant settings serta Live actions dibuka sebagai bottom sheet (ikon gear atau ketuk toast persetujuan)
 
 ## Catatan teknis voice
 
@@ -91,8 +102,9 @@ src/
   components/
     NavSide.jsx            # icon rail kiri, panel navigasi AI, menu utama di drawer
     VoiceCard.jsx          # kartu sesi voice chat (orb, caption, kontrol)
+    ChatCard.jsx           # mode Chat: percakapan bersama, chip jawaban, kolom ketik, penanda call
     Orb.jsx                # orb kaca yang mengikuti level suara
-    SettingsPanel.jsx      # panel Voice Settings (Voice language + AI Mode + Quick Settings)
+    SettingsPanel.jsx      # panel Assistant settings (Language + AI Mode + Quick Settings)
     SessionSummary.jsx     # ringkasan sesi setelah voice chat selesai
     Toast.jsx              # toast beranimasi (satu pill, dengan Undo)
     BottomSheet.jsx        # bottom sheet untuk panel kanan di mobile

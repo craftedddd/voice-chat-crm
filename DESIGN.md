@@ -13,7 +13,7 @@ Riwayat audit dan alasan setiap penggabungan nilai: [docs/design-audit.md](docs/
 2. **Tidak ada hex, rgba, atau angka px baru** untuk warna, ukuran font, weight, radius, shadow, atau durasi. Kalau butuh nilai yang belum ada, tambahkan token dulu di `:root`, lalu catat di file ini.
 3. **Spacing memakai skala `--s-*`** untuk semua komponen baru. Nilai `clamp()` di layout mobile adalah pengecualian karena hasil penyesuaian dengan desain Figma.
 4. **Status selalu berpasangan**: warna utama untuk ikon atau titik, `-soft` untuk latar, `-text` untuk teks di atas latar `-soft`.
-5. Warna orb dan `--grad-mobile` adalah **ilustrasi**. Jangan dipakai untuk komponen. `--grad-mobile-end` (warna terakhir gradien itu) hanya dipakai sebagai latar `html`/`body` di ≤ 640px, supaya area di belakang toolbar Safari iOS menyambung dengan gradien.
+5. Warna orb dan `--grad-mobile` adalah **ilustrasi**. Jangan dipakai untuk komponen. `--grad-mobile` hanya untuk mode Voice di ≤ 640px. `--grad-mobile-end` (warna terakhir gradien itu) hanya dipakai sebagai latar `html`/`body` mode Voice di ≤ 640px, supaya area di belakang toolbar Safari iOS menyambung dengan gradien.
 
 ---
 
@@ -149,6 +149,43 @@ Pengecualian: koreografi toast (morph titik ke pill) memakai durasi literal kare
 - Item lain menutup drawer lalu memunculkan toast "… coming soon".
 - Pergantian isi drawer: geser pendek `--s-6` dan fade (`--dur-base`, `--ease`), arahnya mengikuti navigasi. Mati di `prefers-reduced-motion`.
 
+### Pola mode Chat dan Voice
+
+- Halaman Assistant punya dua mode, Chat dan Voice, dipilih lewat switch (`.seg.modeswitch`). Pilihan terakhir disimpan di localStorage (`nara.mode`).
+- Desktop dan tablet: switch di kiri baris tab context, lalu garis pemisah (`.ctxbar__divider`), lalu tab. Dibaca kiri ke kanan: cara bicara dulu, baru topiknya. Switch tidak ikut di-drag atau di-scroll bersama tab.
+- ≤ 640px: switch menggantikan judul di tengah header (`.main__mode`), di antara menu dan gear.
+- Warna di ≤ 640px mengikuti mode (`.app.is-chat` dan `html[data-mode]`):
+  - **Voice:** gradien `--grad-mobile` sebagai latar orb, seperti sebelumnya.
+  - **Chat:** latar putih `--surface` (termasuk `html`/`body` di belakang toolbar Safari), switch `--surface-field`, dan kolom ketik `--surface-field` tanpa bayangan. Sama dengan kartu chat di desktop, supaya bubble user dan chip kontras.
+- Dua mode memakai satu percakapan. Transkrip call masuk ke chat sebagai bubble, dengan pemisah "Voice call" / "Chat" (`.chatdiv`) saat percakapan berpindah. Yang sudah dikerjakan di satu mode diingat di mode lain.
+- Chat memakai bingkai kartu yang sama dengan voice (`.voicecard.chatcard`). Pesan assistant berupa teks biasa, pesan user berupa bubble kanan (`.chatmsg--user`), catatan Listen only berupa `.chatmsg--note`.
+- Jawaban assistant di chat dipisah jadi dua paragraf berjarak `--s-3` (`.aimsg`, data dari `parts` di `brain.js`): yang sudah dikerjakan atau informasinya, lalu tawaran berikutnya. Warna dan ukurannya sama, hanya jarak yang membedakan.
+  - Chip jawaban (`.chip--toggle`) ada di bawah paragraf kedua, hanya pada pesan terakhir yang masih menunggu jawaban.
+  - Kata sambung ("Next up:", "One more thing:") tidak ditulis di chat karena paragraf baru sudah memisahkannya. Di Voice tetap diucapkan.
+  - Undo untuk aksi ada di Live actions dan toast, tidak di dalam pesan.
+  - Transkrip call tetap teks utuh seperti yang diucapkan. Kalau pertanyaannya datang dari call, chip tampil di bawah percakapan.
+- Toast persetujuan tidak dimunculkan di mode Chat, karena chip jawabannya sudah ada di percakapan.
+- Kolom ketik (`.composer`): tombol mic untuk pindah ke Voice dan tombol kirim bulat aksen.
+- Call tetap berjalan saat pindah ke Chat. Penandanya `.callbar` di atas percakapan: titik berdenyut, "Voice call", durasi, status, Mute, dan End. Ketuk penanda untuk kembali ke Voice. Pesan yang diketik saat call dijawab dengan suara juga.
+- Ganti tab atau bahasa saat chat: konfirmasinya masuk ke percakapan, sama seperti saat call.
+- Animasi chat:
+  - Pesan baru (bubble user, catatan) naik halus `--dur-base`.
+  - Jawaban assistant didahului indikator mengetik gooey (`.chatdots`): titik `--accent` yang membelah jadi dua lalu menyatu lagi seperti cairan, satu putaran `--dur-spin`, memakai filter SVG (blur lalu dipertajam). Di `prefers-reduced-motion` titiknya diam. Setelah itu jawaban ditulis kata demi kata (`.sword`: fade, naik 3px, blur tipis, `--dur-slow`). Paling lama 40 ms per kata dan sekitar 1,5 detik total.
+  - Chip jawaban muncul setelah teks selesai.
+  - Mengirim pesan baru atau menekan chip langsung menampilkan sisa teks.
+  - Hanya pesan baru yang beranimasi. Pindah mode tidak memutar ulang animasi.
+  - Screen reader membaca teks utuh sekali. Di `prefers-reduced-motion`, teks langsung tampil penuh.
+- Saat call berjalan dan user di mode Chat, bubble jawaban muncul mengikuti suara yang diucapkan. Bagian yang belum diucapkan transparan (`.chatmsg__unspoken`), jadi bubble tidak melompat.
+- Pindah dari Chat ke Voice setelah mengobrol:
+  - Layar Voice sebelum call menampilkan label "Continuing from chat" dan pertanyaan terakhir dari chat, bukan briefing tab.
+  - Call dibuka dengan "Picking up from chat." lalu pertanyaan yang menunggu, tanpa briefing ulang. Tanpa tombol "Start fresh": ganti tab sudah memicu briefing baru.
+
+### Assistant settings
+
+- Panel kanan berjudul "Assistant settings" dan dikelompokkan menurut berlaku untuk mode apa.
+- Berlaku untuk Chat dan Voice: Language, AI Mode (Brief answers, Think it through, Guide me), dan Ask Me First.
+- Khusus Voice, tampil di mode Voice atau saat call berjalan: Listen only (di daftar AI Mode), Live Captions, dan tombol pratinjau suara. Di mode Chat, Listen only dibaca sebagai Brief answers.
+
 ### Pola custom context
 
 - Tombol "+" di deretan tab membuka editor: popover di bawah tombol (desktop, `.ctxpop`) atau bottom sheet (≤ 640px). Maksimal 3 custom context, disimpan di localStorage.
@@ -176,7 +213,7 @@ Pengecualian: koreografi toast (morph titik ke pill) memakai durasi literal kare
 ### Bahasa
 
 - UI (label, tab, feed, toast, summary) selalu bahasa Inggris.
-- Bahasa percakapan suara (ucapan, briefing, caption) dipilih di Voice Settings: English atau Bahasa Indonesia, memakai `.seg`.
+- Bahasa percakapan (chat, ucapan, briefing, caption) dipilih di Assistant settings, "Language": English atau Bahasa Indonesia, memakai `.seg`.
 - Bahasa bisa diganti di tengah call. Assistant berhenti, mengonfirmasi singkat dalam bahasa baru, lalu mengulang pertanyaan yang menunggu. Kalau sedang berpikir atau menjalankan aksi, jawaban berikutnya langsung memakai bahasa baru dan diawali konfirmasi itu.
 - Ucapan Indonesia memakai gaya lisan ("siapin", "udah", "nggak", "buat"), bukan bahasa tulis.
 - Merek dan kata serapan dieja ulang hanya untuk suara (`SAY_AS_ID` di `speech.js`). Caption tetap menampilkan ejaan asli.
@@ -207,6 +244,8 @@ Pakai ulang komponen ini sebelum membuat yang baru.
 | Toast | `Toast.jsx` | Satu pill, berbagai jenis. `setSticky()` untuk pertanyaan yang menunggu jawaban (ikon cincin biru, sama dengan titik "menunggu" di feed) |
 | Caption live | `LiveCaption` di `VoiceCard.jsx` | Jendela 3 baris tanpa scroll (`.capwin`) |
 | Tab context | `ContextTabs.jsx` | Deretan tab dengan drag, zona hapus, dan popover editor |
+| Switch mode | `ModeSwitch` di `App.jsx`, `.modeswitch` | Chat atau Voice, memakai `.seg` |
+| Kartu chat | `ChatCard.jsx` | Percakapan (`.chatmsg`, jawaban dua paragraf `.aimsg`), chip jawaban, `.composer`, dan `.callbar` saat call berjalan |
 | Editor context | `ContextEditor.jsx` | Form custom context, dipakai di popover dan bottom sheet |
 | Chip pilihan | `.chip--toggle` | Chip yang bisa dipilih, `.is-on` saat terpilih |
 
@@ -216,9 +255,9 @@ Pakai ulang komponen ini sebelum membuat yang baru.
 
 | Lebar | Perilaku |
 |---|---|
-| > 1220px | Tiga kolom: navigasi, konten, Voice Settings |
-| ≤ 1220px | Konten dan Voice Settings ditumpuk |
+| > 1220px | Tiga kolom: navigasi, konten, Assistant settings |
+| ≤ 1220px | Konten dan Assistant settings ditumpuk |
 | ≤ 960px | Panel navigasi jadi drawer, dengan menu utama di balik tombol "‹ AI" |
-| ≤ 640px | Rail disembunyikan, voice chat layar penuh, Voice Settings di bottom sheet. Latar `html`/`body` memakai `--grad-mobile-end` karena toolbar browser HP mengambang di atas halaman |
+| ≤ 640px | Rail disembunyikan, chat dan voice layar penuh, switch Chat dan Voice di tengah header, Assistant settings di bottom sheet. Latar `html`/`body` memakai `--grad-mobile-end` di mode Voice dan `--surface` di mode Chat, karena toolbar browser HP mengambang di atas halaman |
 
 Setiap screen baru dicek minimal di 1440, 900, dan 393px.

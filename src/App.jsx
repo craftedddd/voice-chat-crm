@@ -9,6 +9,7 @@ import { Toaster, useToaster } from './components/Toast.jsx'
 import BottomSheet from './components/BottomSheet.jsx'
 import ContextTabs from './components/ContextTabs.jsx'
 import ContextEditor from './components/ContextEditor.jsx'
+import ChatCard from './components/ChatCard.jsx'
 
 const BUILTIN_TABS = ['Everything', 'Orders', 'Chats', 'Stock']
 const MAX_CUSTOM = 3
@@ -44,6 +45,31 @@ function useMedia(query) {
   return match
 }
 
+const MODES = [
+  ['chat', 'Chat'],
+  ['voice', 'Voice'],
+]
+
+/** Switch Chat | Voice (segmented control). Dirender dua kali: di header (mobile) dan di baris tab (desktop). */
+function ModeSwitch({ mode, onChange, className }) {
+  return (
+    <div className={`seg modeswitch ${className}`} role="radiogroup" aria-label="Assistant mode">
+      {MODES.map(([id, label]) => (
+        <button
+          key={id}
+          type="button"
+          role="radio"
+          aria-checked={mode === id}
+          className={`seg__btn ${mode === id ? 'is-active' : ''}`}
+          onClick={() => onChange(id)}
+        >
+          {label}
+        </button>
+      ))}
+    </div>
+  )
+}
+
 export default function App() {
   // Konten & pengaturan
   const [activeTab, setActiveTab] = useState('Everything') // id tab: nama tab bawaan atau id custom
@@ -52,6 +78,7 @@ export default function App() {
   const [editorFor, setEditorFor] = useState(null) // 'new' | id custom context | null
   const mobile = useMedia('(max-width: 640px)')
   const [aiMode, setAiMode] = useState('brief')
+  const [mode, setMode] = useStored('nara.mode', 'voice') // Chat | Voice
   const [liveCaptions, setLiveCaptions] = useState(true)
   const [askFirst, setAskFirst] = useState(true)
   const [voiceLang, setVoiceLang] = useState('en') // bahasa percakapan suara, UI tetap bahasa Inggris
@@ -180,8 +207,13 @@ export default function App() {
     if (voice.status === 'connecting') setPanelTab('actions')
   }, [voice.status])
 
-  const phase =
-    voice.status === 'idle' ? (voice.feed.length ? 'last' : 'idle') : voice.status === 'ended' ? 'last' : 'live'
+  const callLive = voice.status !== 'idle' && voice.status !== 'ended'
+  const phase = callLive || (mode === 'chat' && voice.feed.length) ? 'live' : voice.feed.length ? 'last' : 'idle'
+
+  // Mode di <html>: di HP, latar di belakang toolbar browser ikut warna mode (Chat putih, Voice gradien)
+  useEffect(() => {
+    document.documentElement.dataset.mode = mode
+  }, [mode])
 
   // Tutup drawer dengan tombol Esc
   useEffect(() => {
@@ -226,6 +258,7 @@ export default function App() {
     setLiveCaptions,
     askFirst,
     setAskFirst,
+    showVoice: mode === 'voice' || callLive,
     onToast: showToast,
   }
 
@@ -252,7 +285,8 @@ export default function App() {
     const api = toaster.api
     const mobile = window.matchMedia('(max-width: 640px)').matches
     const feedOnScreen = mobile ? sheetOpen && panelTab === 'actions' : panelTab === 'actions' && isFeedVisible()
-    if (!waiting || feedOnScreen) {
+    // Di mode Chat chip jawabannya ada di percakapan; tanpa call, pertanyaan dari chat tidak perlu toast
+    if (!waiting || feedOnScreen || mode === 'chat' || !callLive) {
       api.setSticky(null)
       return
     }
@@ -266,10 +300,10 @@ export default function App() {
         if (mobile) setSheetOpen(true)
       },
     })
-  }, [waiting, answer, sheetOpen, panelTab, isFeedVisible, toaster.api])
+  }, [waiting, answer, sheetOpen, panelTab, isFeedVisible, toaster.api, mode, callLive])
 
   return (
-    <div className="app">
+    <div className={`app ${mode === 'chat' ? 'is-chat' : ''}`}>
       <IconRail activeRail="ai" onRail={() => {}} onToast={showToast} />
 
       <div className="navcol">
@@ -281,55 +315,81 @@ export default function App() {
           <button className="iconbtn main__menu" aria-label="Open menu" onClick={() => setNavOpen(true)}>
             <MenuIcon size={18} />
           </button>
-          <h1 className="main__title">Voice Chat</h1>
+          <h1 className="main__title">Assistant</h1>
+          <ModeSwitch mode={mode} onChange={setMode} className="main__mode" />
           <button
             className="iconbtn main__gear"
-            aria-label="Voice settings"
+            aria-label="Assistant settings"
             aria-haspopup="dialog"
             aria-expanded={sheetOpen}
             onClick={() => openSheet('settings')}
           >
             <CogIcon size={21} />
           </button>
-          <p className="main__subtitle">Run your Shopee and TikTok Shop by voice</p>
+          <p className="main__subtitle">Run your Shopee and TikTok Shop by chat or voice</p>
         </header>
 
-        <ContextTabs
-          tabs={tabs}
-          activeId={typeof activeCtx === 'string' ? activeCtx : activeCtx.id}
-          onSelect={(id) => {
-            setActiveTab(id)
-            setEditorFor(null)
-          }}
-          onEdit={(id) => setEditorFor(editorFor === id ? null : id)}
-          onAdd={addContext}
-          onReorder={setTabOrder}
-          onDelete={deleteContext}
-          editorFor={editorFor}
-          editor={mobile ? null : editorNode}
-          onCloseEditor={() => setEditorFor(null)}
-        />
+        {/* Desktop: switch Chat | Voice di kiri, garis pemisah, lalu tab context */}
+        <div className="ctxbar">
+          <ModeSwitch mode={mode} onChange={setMode} className="ctxbar__mode" />
+          <span className="ctxbar__divider" aria-hidden="true" />
+          <ContextTabs
+            tabs={tabs}
+            activeId={typeof activeCtx === 'string' ? activeCtx : activeCtx.id}
+            onSelect={(id) => {
+              setActiveTab(id)
+              setEditorFor(null)
+            }}
+            onEdit={(id) => setEditorFor(editorFor === id ? null : id)}
+            onAdd={addContext}
+            onReorder={setTabOrder}
+            onDelete={deleteContext}
+            editorFor={editorFor}
+            editor={mobile ? null : editorNode}
+            onCloseEditor={() => setEditorFor(null)}
+          />
+        </div>
 
         <div className="content">
-          <VoiceCard
-            status={voice.status}
-            muted={voice.muted}
-            seconds={voice.seconds}
-            caption={voice.caption}
-            notes={voice.notes}
-            summary={voice.summary}
-            supported={voice.supported}
-            listenOnly={aiMode === 'listen'}
-            liveCaptions={liveCaptions}
-            briefing={briefingFor(voiceLang, activeCtx)}
-            getLevel={voice.getLevel}
-            onStart={voice.start}
-            onToggleMute={voice.toggleMute}
-            onEnd={voice.end}
-            onInvite={() => showToast('Inviting teammates is coming soon')}
-            onToast={showToast}
-            working={voice.working}
-          />
+          {mode === 'chat' ? (
+            <ChatCard
+              messages={voice.messages}
+              typing={voice.typing}
+              waiting={voice.waiting}
+              call={{ status: voice.status, seconds: voice.seconds, muted: voice.muted }}
+              onOpenChat={voice.openChat}
+              spoken={voice.spoken}
+              onSend={voice.send}
+              onAnswer={voice.answer}
+              onVoice={() => setMode('voice')}
+              onMute={voice.toggleMute}
+              onEnd={voice.end}
+            />
+          ) : (
+            <VoiceCard
+              status={voice.status}
+              muted={voice.muted}
+              seconds={voice.seconds}
+              caption={voice.caption}
+              notes={voice.notes}
+              summary={voice.summary}
+              supported={voice.supported}
+              listenOnly={aiMode === 'listen'}
+              liveCaptions={liveCaptions}
+              briefing={
+                voice.resume
+                  ? { label: 'Continuing from chat', lead: voice.resume, tail: '' }
+                  : briefingFor(voiceLang, activeCtx)
+              }
+              getLevel={voice.getLevel}
+              onStart={voice.start}
+              onToggleMute={voice.toggleMute}
+              onEnd={voice.end}
+              onInvite={() => showToast('Inviting teammates is coming soon')}
+              onToast={showToast}
+              working={voice.working}
+            />
+          )}
 
           <aside className="sidecol">
             <SidePanel {...panelProps} />
@@ -367,7 +427,7 @@ export default function App() {
       )}
 
       {/* Voice Settings sebagai bottom sheet (mobile) */}
-      <BottomSheet open={sheetOpen} onClose={closeSheet} label={panelTab === 'actions' ? 'Live actions' : 'Voice settings'}>
+      <BottomSheet open={sheetOpen} onClose={closeSheet} label={panelTab === 'actions' ? 'Live actions' : 'Assistant settings'}>
         <SidePanel {...panelProps} />
       </BottomSheet>
 

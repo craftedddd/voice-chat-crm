@@ -468,6 +468,31 @@ button {
   text-wrap: pretty;
 }
 
+/* Switch Chat | Voice (segmented control). Desktop: di kiri baris tab context, dipisah garis.
+   Mobile: menggantikan judul di tengah header. */
+.modeswitch { margin: 0; flex: none; }
+.modeswitch .seg__btn { padding: var(--s-2) var(--s-4); font-size: var(--fs-sm); }
+.modeswitch .seg__btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.main__mode { display: none; }
+
+.ctxbar {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-3);
+  margin-bottom: 26px;
+}
+.ctxbar .ctxtabs { flex: 1; min-width: 0; }
+.ctxbar .tabs { margin-bottom: 0; }
+.ctxbar__mode { width: 168px; }
+.ctxbar__mode .seg__btn { padding: var(--s-1-5) 0; } /* setinggi tab di sebelahnya */
+.ctxbar__divider {
+  flex: none;
+  width: 1px;
+  height: var(--s-6);
+  margin-top: var(--s-1-5);
+  background: var(--border-strong);
+}
+
 .iconbtn {
   width: 36px;
   height: 36px;
@@ -711,6 +736,189 @@ body.is-dragging-tab { cursor: grabbing; user-select: none; -webkit-user-select:
   align-items: center;
   gap: 34px;
 }
+
+/* ------------------------------------------------------------
+   Mode Chat (draf): bingkai sama dengan .voicecard
+------------------------------------------------------------ */
+.chatcard {
+  align-items: stretch;
+  height: 620px; /* tinggi tetap seperti kartu voice; percakapan di-scroll di dalamnya */
+  padding: var(--s-8) var(--s-8) var(--s-6);
+}
+.chatcard__log {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+}
+.chatcard__item { display: flex; flex-direction: column; gap: var(--s-4); }
+.chatmsg {
+  max-width: 520px;
+  font-size: var(--fs-lg);
+  line-height: var(--lh-relaxed);
+  color: var(--text);
+  text-wrap: pretty;
+}
+.chatmsg--user {
+  align-self: flex-end;
+  max-width: 80%;
+  padding: var(--s-2-5) var(--s-4);
+  border-radius: var(--r-lg);
+  background: var(--surface-field);
+}
+.chatmsg--note {
+  padding-left: var(--s-3);
+  border-left: 2px solid var(--border-strong);
+  color: var(--text-3);
+}
+.chatmsg--note .voicecard__who { display: block; margin-bottom: var(--s-1); }
+
+/* Jawaban assistant: hasil dan tawaran berikutnya sebagai dua paragraf berjarak */
+.aimsg { display: flex; flex-direction: column; gap: var(--s-3); }
+.aimsg .chatcard__chips { margin-top: var(--s-1); }
+
+/* Animasi chat: pesan baru naik halus, jawaban assistant ditulis kata demi kata */
+.chatmsg.is-new,
+.chatcard__chips { animation: chat-in var(--dur-base) var(--ease) both; }
+.sword { display: inline-block; animation: word-in var(--dur-slow) var(--ease) both; }
+.chatmsg__unspoken { color: transparent; } /* belum diucapkan: tempatnya sudah disiapkan supaya bubble tidak melompat */
+@keyframes chat-in { from { opacity: 0; transform: translateY(6px); } }
+@keyframes word-in { from { opacity: 0; transform: translateY(3px); filter: blur(2px); } }
+@media (prefers-reduced-motion: reduce) {
+  .chatmsg.is-new,
+  .chatcard__chips,
+  .sword { animation: none; }
+}
+
+/* Pemisah saat percakapan berpindah antara chat dan call */
+.chatdiv {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  font-size: var(--fs-2xs);
+  font-weight: var(--fw-bold);
+  letter-spacing: var(--ls-caps);
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+.chatdiv::before,
+.chatdiv::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+
+/* Assistant sedang mengetik: titik aksen yang membelah lalu menyatu lagi seperti cairan (gooey) */
+.chatdots { display: flex; align-items: center; height: var(--s-6); }
+.chatdots__defs { position: absolute; width: 0; height: 0; }
+.chatdots__blobs {
+  position: relative;
+  width: var(--s-8);
+  height: var(--s-5);
+  margin-left: calc(-1 * var(--s-1-5)); /* titik tengah sejajar awal teks */
+  filter: url(#chatdots-goo);
+}
+.chatdots__blobs span {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 10px;
+  height: 10px;
+  margin: -5px 0 0 -5px;
+  border-radius: var(--r-full);
+  background: var(--accent);
+  animation: goo-left var(--dur-spin) ease-in-out infinite;
+}
+.chatdots__blobs span:nth-child(2) { animation-name: goo-right; }
+@keyframes goo-left { 50% { transform: translateX(-6px) scale(0.9); } }
+@keyframes goo-right { 50% { transform: translateX(6px) scale(0.9); } }
+
+/* Penanda call yang masih berjalan di mode Chat */
+.callbar {
+  display: flex;
+  align-items: center;
+  gap: var(--s-1);
+  margin-bottom: var(--s-5);
+  padding: var(--s-1) var(--s-1) var(--s-1) var(--s-1-5);
+  border-radius: var(--r-full);
+  background: var(--accent-softer);
+}
+.callbar__info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  padding: var(--s-1-5) var(--s-2);
+  border-radius: var(--r-full);
+  text-align: left;
+}
+.callbar__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--r-full);
+  background: var(--accent);
+  animation: afeed-breathe var(--dur-pulse) ease-in-out infinite;
+}
+.callbar__title { font-size: var(--fs-sm); font-weight: var(--fw-semibold); color: var(--text); }
+.callbar__meta { font-size: var(--fs-sm); color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.callbar__btn {
+  flex: none;
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-full);
+  color: var(--text-muted);
+  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
+}
+.callbar__btn:hover,
+.callbar__info:hover { background: var(--accent-soft); color: var(--text); }
+.callbar__btn[aria-pressed='true'] { color: var(--accent); }
+.callbar__btn--end:hover { background: var(--danger-soft); color: var(--danger-text); }
+.callbar__btn:focus-visible,
+.callbar__info:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+@media (prefers-reduced-motion: reduce) {
+  .chatdots__blobs span,
+  .callbar__dot { animation: none; }
+}
+
+.composer {
+  display: flex;
+  align-items: center;
+  gap: var(--s-1);
+  margin-top: var(--s-6);
+  padding: var(--s-1-5) var(--s-1-5) var(--s-1-5) var(--s-5);
+  background: var(--surface-field);
+  border-radius: var(--r-full);
+  transition: box-shadow var(--dur-fast) var(--ease);
+}
+.composer:focus-within { box-shadow: 0 0 0 2px var(--accent-soft); }
+.composer__input {
+  flex: 1;
+  min-width: 0;
+  height: 40px;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  font-size: var(--fs-md);
+  color: var(--text);
+  outline: none;
+}
+.composer__input::placeholder { color: var(--text-faint); }
+.composer__btn {
+  flex: 0 0 auto;
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-full);
+  color: var(--text-muted);
+  transition: background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
+}
+.composer__btn:hover { background: var(--surface-hover); color: var(--text); }
+.composer__btn--send { background: var(--accent); color: var(--on-accent); }
+.composer__btn--send:hover { background: var(--accent-hover); color: var(--on-accent); }
+.composer__btn--send:disabled { background: transparent; color: var(--text-faint); cursor: default; }
+.composer__btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 /* ------------------------------------------------------------
    Orb kaca: bola transparan dengan kabut warna yang berputar
@@ -1993,6 +2201,22 @@ body.is-dragging-tab { cursor: grabbing; user-select: none; -webkit-user-select:
   }
   .main__subtitle { display: none; }
 
+  /* Switch menggantikan judul di tengah header */
+  .main__title { display: none; }
+  .main__menu { grid-column: 1; grid-row: 1; }
+  .main__gear { grid-column: 3; grid-row: 1; }
+  .main__mode { display: flex; grid-column: 2; justify-self: center; width: 168px; background: var(--glass); }
+  .main__mode .seg__btn { padding: var(--s-2) 0; }
+  .ctxbar { display: block; margin-bottom: 0; }
+  .ctxbar__mode,
+  .ctxbar__divider { display: none; }
+
+  /* Mode Chat layar penuh: kolom ketik putih di bawah */
+
+  .composer { background: var(--surface); box-shadow: var(--shadow-float); }
+  .composer__input { font-size: var(--fs-xl); } /* 16px ke atas supaya Safari iOS tidak zoom */
+  .composer__btn:hover { background: var(--surface-field); }
+
   .tabs { margin-bottom: 0; gap: 2px; }
   .tab { font-size: var(--fs-sm); padding: 7px 12.5px; }
   /* 16px ke atas supaya Safari iOS tidak zoom saat field difokus */
@@ -2013,6 +2237,17 @@ body.is-dragging-tab { cursor: grabbing; user-select: none; -webkit-user-select:
     box-shadow: none;
     padding: clamp(28px, 10dvh, 92px) 4px calc(env(safe-area-inset-bottom, 0px) + clamp(24px, 8dvh, 70px));
   }
+
+  /* Mode Chat: percakapan mulai tepat di bawah tab, kolom ketik di bawah layar */
+  .voicecard.chatcard { height: auto; padding: var(--s-4) 0 calc(env(safe-area-inset-bottom, 0px) + var(--s-4)); }
+
+  /* Mode Chat di HP: latar putih seperti kartu chat di desktop, supaya bubble dan chip kontras.
+     Gradien hanya untuk mode Voice (latar orb). */
+  html[data-mode='chat'],
+  html[data-mode='chat'] body,
+  .app.is-chat .main { background: var(--surface); }
+  .app.is-chat .main__mode { background: var(--surface-field); }
+  .app.is-chat .composer { background: var(--surface-field); box-shadow: none; }
 
   .voicecard__top { gap: 22px; }
   .orb { width: clamp(120px, 20dvh, 164px); height: clamp(120px, 20dvh, 164px); }

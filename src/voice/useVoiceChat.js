@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { getSR, isVoiceSupported, primeSpeech, speak, createMicMeter } from './speech.js'
-import { respond, openingFor, cardFor, stillWaiting, checkTomorrow, undoReply, nothingToUndo, switchTo, switchedLine, tabName, replyKind } from './brain.js'
+import { respond, openingFor, cardFor, stillWaiting, checkTomorrow, undoReply, nothingToUndo, switchTo, switchedLine, tabName, replyKind, resumeFrom } from './brain.js'
 
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v))
 // Tempo langkah kerja Live actions (ms): cukup lambat untuk terbaca, tidak bikin menunggu
@@ -37,6 +37,10 @@ export default function useVoiceChat({ tab, aiMode, askFirst, voiceLang = 'en', 
   const [feed, setFeed] = useState([])
   const [waiting, setWaiting] = useState(null) // kartu "Needs your OK"
   const [working, setWorking] = useState(false)
+  // Percakapan bersama mode Chat dan Voice: { id, who: 'user' | 'ai' | 'note', text, via: 'chat' | 'voice' }
+  const [messages, setMessages] = useState([])
+  const [typing, setTyping] = useState(false) // assistant sedang menyusun balasan chat
+  const [spoken, setSpoken] = useState(null) // { id, n }: bagian pesan yang sudah diucapkan saat call
 
   const live = useRef({})
   live.current = { ...live.current, tab, aiMode, askFirst, voiceLang, onToast, isFeedVisible, muted, seconds }
@@ -66,11 +70,29 @@ export default function useVoiceChat({ tab, aiMode, askFirst, voiceLang = 'en', 
     ending: false, // ucapan pamit sedang berjalan, sesi berakhir setelahnya
     announceLang: false, // bahasa diganti saat assistant berpikir: konfirmasi di awal jawaban berikutnya
     tabAtStart: 'Everything',
+    msgSeq: 0,
+    chatStarted: false, // percakapan chat sudah dibuka (pesan pembuka sudah tampil)
+    chatTimer: null,
   })
 
-  const record = (who, text) => {
-    if (text) r.current.log.push({ who, text, t: live.current.seconds || 0 })
+  // extra (opsional): parts { body, next } untuk tampilan chat
+  const pushMsg = (who, text, via, extra) => {
+    if (!text) return null
+    const id = ++r.current.msgSeq
+    setMessages((m) => [...m, { id, who, text, via, ...extra }])
+    return id
   }
+
+  // Catatan call (untuk ringkasan) sekaligus bubble di percakapan chat
+  const record = (who, text) => {
+    if (!text) return null
+    r.current.log.push({ who, text, t: live.current.seconds || 0 })
+    return pushMsg(who, text, 'voice')
+  }
+
+  // Waktu item feed: detik call saat voice, jam saat chat tanpa call
+  const stamp = () =>
+    r.current.active ? live.current.seconds || 0 : new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 
   const go = (s) => {
     r.current.status = s
@@ -84,7 +106,7 @@ export default function useVoiceChat({ tab, aiMode, askFirst, voiceLang = 'en', 
     setWaiting((w) => {
       if (!card) return null
       if (w && w.step === card.step) return w.yes.say === card.yes.say ? w : { ...card, t: w.t } // bahasa berganti
-      return { ...card, t: live.current.seconds || 0 }
+      return { ...card, t: stamp() }
     })
   }
 
@@ -155,7 +177,7 @@ export default function useVoiceChat({ tab, aiMode, askFirst, voiceLang = 'en', 
         s.workTimers.push(setTimeout(tick, STEP_MS()))
       } else {
         finish()
-        s.workTimers.push(setTimeout(() => s.active && onDone(), SETTLE_MS))
+        s.workTimers.push(setTimeout(onDone, SETTLE_MS))
       }
     }
     s.workTimers.push(setTimeout(tick, STEP_MS()))
@@ -171,7 +193,7 @@ export default function useVoiceChat({ tab, aiMode, askFirst, voiceLang = 'en', 
       mode: s.mode,
       tab: tabName(s.tabAtStart),
       transcript: [...s.log],
-      actions: [...s.actions],
+      actions: s.actions.filter((a) => a.at >= s.startedAt),
       notes: s.log.filter((x) => x.who === 'note').map((x) => x.text),
       exchanges: s.log.filter((x) => x.who === 'user' || x.who === 'note').length,
       waiting: s.mode === 'listen' ? [] : stillWaiting(s.actions.map((a) => a.key)),
@@ -183,7 +205,7 @@ export default function useVoiceChat({ tab, aiMode, askFirst, voiceLang = 'en', 
   function endedToast(reason) {
     const s = r.current
     const notes = s.log.filter((x) => x.who === 'note').length
-    const n = s.mode === 'listen' ? notes : s.actions.length
+    const n = s.mode === 'listen' ? notes : s.actions.filter((a) => a.at >= s.startedAt).length
     const unit = s.mode === 'listen' ? 'note' : 'action'
     const detail = n > 0 ? `${n} ${unit}${n === 1 ? '' : 's'} saved` : formatClock(live.current.seconds || 0)
     toast({
@@ -208,13 +230,15 @@ export default function useVoiceChat({ tab, aiMode, askFirst, voiceLang = 'en', 
     s.ending = false
     s.announceLang = false
     s.retab = false
+    setSpoken(null)
     clearTimeout(s.thinkTimer)
     s.cancelSpeech?.()
     s.cancelSpeech = null
     stopRecognition()
     s.meter?.close()
     s.meter = null
-    s.ctx = { pending: null, done: [] }
+    // Percakapan chat tetap berlanjut: yang sudah dikerjakan tetap diingat
+    s.ctx = { pending: null, done: s.ctx.done }
     go(finalStatus)
   }
 
@@ -227,17 +251,20 @@ export default function useVoiceChat({ tab, aiMode, askFirst, voiceLang = 'en', 
       if (!thenEnd) text = `${switchedLine(s.lang)} ${text}`
     }
     go('speaking')
-    record('ai', text)
+    const mid = record('ai', text)
     setCaption({ who: 'ai', lead: '', tail: text })
+    setSpoken({ id: mid, n: 0 })
     showWaiting()
     s.cancelSpeech = speak(text, {
       lang: s.lang,
       onProgress: (n, boundary) => {
         if (boundary) s.pulse = 1
         setCaption({ who: 'ai', lead: text.slice(0, n), tail: text.slice(n) })
+        setSpoken({ id: mid, n })
       },
       onEnd: () => {
         s.cancelSpeech = null
+        setSpoken(null)
         if (!s.active) return
         if (thenEnd) {
           endSession('ended', 'goodbye')
@@ -289,72 +316,143 @@ export default function useVoiceChat({ tab, aiMode, askFirst, voiceLang = 'en', 
     setCaption({ who: 'user', lead: text, tail: '' })
     s.thinkTimer = setTimeout(() => {
       if (!s.active) return
-      const before = s.ctx
-      const turn = {
-        text,
-        mode: live.current.aiMode,
-        askFirst: live.current.askFirst,
-        tab: live.current.tab,
-        ctx: before,
-        lang: s.lang,
-      }
-      const out = respond(turn)
-      s.ctx = out.ctx
-
-      // "Undo that": batalkan aksi terakhir
-      if (out.undo) {
-        const last = s.actions[s.actions.length - 1]
-        if (last) {
-          undoAction(last.id)
-          toast({ kind: 'undo', text: undoneText(last) })
-          say(undoReply(last.kind, s.lang))
-        } else {
-          say(nothingToUndo(s.lang))
-        }
-        return
-      }
-
-      if (out.toast) {
-        const a = toAction(out.toast, out.work)
-        a.id = ++s.actionSeq
-        a.mark = out.ctx.done.find((m) => !before.done.includes(m)) || null
-        a.followUp = out.ctx.pending
-        s.actions.push(a)
-        const work = out.work || { title: a.label, steps: [], detail: '' }
-        const item = {
-          id: a.id,
-          kind: a.kind,
-          status: 'running',
-          title: work.title,
-          doneTitle: a.label,
-          detail: work.detail,
-          steps: work.steps,
-          step: 0,
-          t: live.current.seconds || 0,
-        }
-        setFeed((f) => [item, ...f])
-        // Assistant baru melapor setelah pekerjaannya selesai. Toast hasil aksi selalu tampil.
-        runWork(item, () => {
-          toast({
-            kind: 'success',
-            text: a.label,
-            key: `action:${a.id}`,
-            action: { label: 'Undo', onClick: () => undoAction(a.id), after: { text: undoneText(a) } },
-          })
-          // Bahasa diganti selama aksi berjalan: susun ulang jawabannya dalam bahasa baru
-          const reply = s.lang === turn.lang ? out.reply : respond({ ...turn, lang: s.lang }).reply
-          say(reply, !!out.endCall)
-        })
-        return
-      }
-      say(out.reply, !!out.endCall)
+      processTurn(text, say)
     }, 450 + Math.random() * 350)
+  }
+
+  /**
+   * Satu giliran percakapan (dari suara atau ketikan). deliver(reply, endCall, meta) menyampaikan
+   * jawabannya: diucapkan saat call, atau jadi bubble chat.
+   */
+  function processTurn(text, deliver) {
+    const s = r.current
+    const before = s.ctx
+    const turn = {
+      text,
+      // Listen only hanya berlaku untuk voice; chat memakai Brief answers
+      mode: !s.active && live.current.aiMode === 'listen' ? 'brief' : live.current.aiMode,
+      askFirst: live.current.askFirst,
+      tab: live.current.tab,
+      ctx: before,
+      lang: s.lang,
+    }
+    const out = respond(turn)
+    s.ctx = out.ctx
+
+    // "Undo that": batalkan aksi terakhir
+    if (out.undo) {
+      const last = s.actions[s.actions.length - 1]
+      if (last) {
+        undoAction(last.id)
+        toast({ kind: 'undo', text: undoneText(last) })
+        deliver(undoReply(last.kind, s.lang))
+      } else {
+        deliver(nothingToUndo(s.lang))
+      }
+      return
+    }
+
+    if (out.toast) {
+      const a = toAction(out.toast, out.work)
+      a.id = ++s.actionSeq
+      a.mark = out.ctx.done.find((m) => !before.done.includes(m)) || null
+      a.followUp = out.ctx.pending
+      a.at = Date.now()
+      s.actions.push(a)
+      const work = out.work || { title: a.label, steps: [], detail: '' }
+      const item = {
+        id: a.id,
+        kind: a.kind,
+        status: 'running',
+        title: work.title,
+        doneTitle: a.label,
+        detail: work.detail,
+        steps: work.steps,
+        step: 0,
+        t: stamp(),
+      }
+      setFeed((f) => [item, ...f])
+      // Assistant baru melapor setelah pekerjaannya selesai. Toast hasil aksi selalu tampil.
+      runWork(item, () => {
+        toast({
+          kind: 'success',
+          text: a.label,
+          key: `action:${a.id}`,
+          action: { label: 'Undo', onClick: () => undoAction(a.id), after: { text: undoneText(a) } },
+        })
+        // Bahasa diganti selama aksi berjalan: susun ulang jawabannya dalam bahasa baru
+        const final = s.lang === turn.lang ? out : respond({ ...turn, lang: s.lang })
+        deliver(final.reply, !!out.endCall, { parts: final.parts })
+      })
+      return
+    }
+    deliver(out.reply, !!out.endCall, { parts: out.parts })
+  }
+
+  // ---------------------------------------------------------------------------
+  // Mode Chat
+  // ---------------------------------------------------------------------------
+
+  /** Buka percakapan chat: pesan pembuka sesuai tab, sekali saja. */
+  function openChat() {
+    const s = r.current
+    if (s.chatStarted) return
+    s.chatStarted = true
+    s.chatTabKey = JSON.stringify(live.current.tab)
+    if (s.active) return // call sedang berjalan: transkripnya sudah jadi percakapan
+    s.lang = live.current.voiceLang
+    const o = openingFor(live.current.tab, s.lang, { done: s.ctx.done })
+    s.ctx = { ...o.ctx, done: s.ctx.done }
+    pushMsg('ai', o.reply, 'chat', { parts: o.parts })
+    showWaiting()
+  }
+
+  function chatReply(text, _endCall, meta = {}) {
+    const s = r.current
+    setTyping(false)
+    let parts = meta.parts
+    if (s.announceLang) {
+      s.announceLang = false
+      const head = switchedLine(s.lang)
+      text = `${head} ${text}`
+      if (parts) parts = { ...parts, body: `${head} ${parts.body}` }
+    }
+    pushMsg('ai', text, 'chat', { parts })
+    showWaiting()
+  }
+
+  /** Pesan yang diketik. Saat call berjalan, diperlakukan seperti ucapan (dijawab dengan suara juga). */
+  function send(text) {
+    const s = r.current
+    text = text.trim()
+    if (!text) return false
+    if (s.active) {
+      if (s.status !== 'listening' && s.status !== 'speaking') return false
+      s.cancelSpeech?.()
+      s.cancelSpeech = null
+      handleFinal(text)
+      return true
+    }
+    if (typing || s.finishWork) return false
+    if (!s.chatStarted) s.chatTabKey = JSON.stringify(live.current.tab)
+    s.chatStarted = true
+    s.chatTalked = true // sudah mengobrol: Voice melanjutkan dari sini
+    s.lang = live.current.voiceLang
+    setWaiting(null)
+    pushMsg('user', text, 'chat')
+    setTyping(true)
+    s.chatTimer = setTimeout(() => processTurn(text, chatReply), 450 + Math.random() * 350)
+    return true
   }
 
   /** Jawaban dari tombol di kartu "Needs your OK", diperlakukan seperti ucapan user. */
   function answer(text) {
     const s = r.current
-    if (!s.active || (s.status !== 'listening' && s.status !== 'speaking')) return
+    if (!s.active) {
+      send(text)
+      return
+    }
+    if (s.status !== 'listening' && s.status !== 'speaking') return
     s.cancelSpeech?.()
     s.cancelSpeech = null
     handleFinal(text)
@@ -458,8 +556,9 @@ export default function useVoiceChat({ tab, aiMode, askFirst, voiceLang = 'en', 
     setNotes(0)
     setCaption(null)
     setSummary(null)
-    setFeed([])
     setWaiting(null)
+    clearTimeout(s.chatTimer)
+    setTyping(false)
     s.log = []
     s.actions = []
     s.netErrors = 0
@@ -492,7 +591,8 @@ export default function useVoiceChat({ tab, aiMode, askFirst, voiceLang = 'en', 
     }
 
     s.active = true
-    s.ctx = { pending: null, done: [] }
+    // Lanjutan dari chat: pertanyaan yang menunggu tetap dipakai
+    if (!s.chatTalked) s.ctx = { pending: null, done: s.ctx.done }
     s.restarts = []
     s.startedAt = Date.now()
     s.mode = live.current.aiMode
@@ -503,7 +603,10 @@ export default function useVoiceChat({ tab, aiMode, askFirst, voiceLang = 'en', 
       go('listening')
       beginListening()
     } else {
-      const opening = openingFor(live.current.tab, s.lang)
+      // Sudah mengobrol di chat: lanjutkan pertanyaan terakhir, bukan briefing dari awal
+      const opening = s.chatTalked
+        ? resumeFrom(s.lang, { ...s.ctx, scope: s.ctx.scope || openingFor(live.current.tab, s.lang).ctx.scope })
+        : openingFor(live.current.tab, s.lang, { done: s.ctx.done })
       s.ctx = opening.ctx
       say(opening.reply)
     }
@@ -523,7 +626,20 @@ export default function useVoiceChat({ tab, aiMode, askFirst, voiceLang = 'en', 
   // mengonfirmasi dan mengulang pertanyaan yang menunggu dalam bahasa baru.
   useEffect(() => {
     const s = r.current
-    if (!s.active || s.lang === voiceLang) return
+    if (!s.active) {
+      // Chat tanpa call: konfirmasi bahasa dan ulangi pertanyaan yang menunggu di percakapan
+      if (!s.chatStarted || s.lang === voiceLang) return
+      s.lang = voiceLang
+      if (typing || s.finishWork) {
+        s.announceLang = true
+        return
+      }
+      const out = switchTo(s.lang, s.ctx)
+      s.ctx = out.ctx
+      chatReply(out.reply, false, { parts: out.parts })
+      return
+    }
+    if (s.lang === voiceLang) return
     s.lang = voiceLang
     if (live.current.aiMode === 'listen') {
       if (s.status === 'listening') beginListening()
@@ -559,7 +675,17 @@ export default function useVoiceChat({ tab, aiMode, askFirst, voiceLang = 'en', 
   const tabKey = JSON.stringify(tab)
   useEffect(() => {
     const s = r.current
-    if (!s.active || s.tabKey === tabKey) return
+    if (!s.active) {
+      // Chat tanpa call: briefing tab baru masuk ke percakapan
+      if (!s.chatStarted || s.chatTabKey === tabKey) return
+      s.chatTabKey = tabKey
+      s.lang = live.current.voiceLang
+      const o = openingFor(live.current.tab, s.lang, { done: s.ctx.done, switched: true })
+      s.ctx = o.ctx
+      chatReply(o.reply, false, { parts: o.parts })
+      return
+    }
+    if (s.tabKey === tabKey) return
     s.tabKey = tabKey
     if (live.current.aiMode === 'listen' || s.ending) return
     if (s.status === 'thinking') {
@@ -584,6 +710,7 @@ export default function useVoiceChat({ tab, aiMode, askFirst, voiceLang = 'en', 
       const s = r.current
       s.active = false
       clearTimeout(s.thinkTimer)
+      clearTimeout(s.chatTimer)
       s.cancelSpeech?.()
       s.meter?.close()
       if (s.rec) {
@@ -622,6 +749,16 @@ export default function useVoiceChat({ tab, aiMode, askFirst, voiceLang = 'en', 
     }
   }, [])
 
+  // Layar Voice sebelum call: pertanyaan terakhir dari chat, kalau user sudah mengobrol
+  let resume = null
+  if (r.current.chatTalked) {
+    const last = [...messages].reverse().find((m) => m.who === 'ai')
+    if (last) {
+      const sentences = last.text.match(/[^.!?]+[.!?]+/g) || [last.text]
+      resume = (sentences.filter((x) => x.trim().endsWith('?')).pop() || sentences.pop()).trim()
+    }
+  }
+
   return {
     status,
     muted,
@@ -639,5 +776,11 @@ export default function useVoiceChat({ tab, aiMode, askFirst, voiceLang = 'en', 
     getLevel,
     answer,
     undo: undoFromFeed,
+    messages,
+    typing,
+    openChat,
+    send,
+    spoken,
+    resume,
   }
 }

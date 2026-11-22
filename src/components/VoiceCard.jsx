@@ -132,10 +132,14 @@ export default function VoiceCard({
     )
   } else if (idle) {
     body = (
-      <p className="voicecard__captions" key={briefing.lead}>
-        <span className="t-lead">{briefing.lead}</span>
-        <span className="t-tail">{briefing.tail}</span>
-      </p>
+      <div className="voicecard__captionwrap" key={briefing.lead}>
+        {/* Lanjutan dari chat: label kecil di atas pertanyaan terakhir */}
+        {briefing.label && <div className="voicecard__who">{briefing.label}</div>}
+        <p className="voicecard__captions">
+          <span className="t-lead">{briefing.lead}</span>
+          <span className="t-tail">{briefing.tail}</span>
+        </p>
+      </div>
     )
   } else if (caption) {
     body = (

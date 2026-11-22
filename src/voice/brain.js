@@ -427,10 +427,19 @@ const SWITCHED = { en: "Sure, let's continue in English.", id: 'Oke, kita lanjut
 export const switchedLine = (lang) => L(SWITCHED, lang)
 export function switchTo(lang, ctx) {
   const head = L(SWITCHED, lang)
-  if (ctx.pending && STEPS[ctx.pending]) return { reply: `${head} ${askOf(ctx.pending, lang)}`, ctx }
+  if (ctx.pending && STEPS[ctx.pending]) return { ...two(head, askOf(ctx.pending, lang)), ctx }
   const s = nextSuggestion(ctx.done, lang, ctx.scope)
-  if (s) return { reply: `${head} ${s.line}`, ctx: { ...ctx, pending: s.step } }
-  return { reply: `${head} ${L(ALL_DONE, lang).split('. ').pop()}`, ctx }
+  if (s) return { ...two(head, s.line), ctx: { ...ctx, pending: s.step } }
+  return { ...two(`${head} ${L(ALL_DONE, lang).split('. ').pop()}`), ctx }
+}
+// Pindah dari Chat ke Voice: lanjutkan percakapan yang sama, tanpa membacakan briefing lagi
+const RESUMED = { en: 'Picking up from chat.', id: 'Lanjut dari chat ya.' }
+export function resumeFrom(lang, ctx) {
+  const head = L(RESUMED, lang)
+  if (ctx.pending && STEPS[ctx.pending]) return { ...two(head, askOf(ctx.pending, lang)), ctx }
+  const s = nextSuggestion(ctx.done, lang, ctx.scope)
+  if (s) return { ...two(head, s.line), ctx: { ...ctx, pending: s.step } }
+  return { ...two(`${head} ${L(ALL_DONE, lang)}`), ctx }
 }
 const CONNECT = { en: ['Next up:', 'One more thing:', 'While we are at it:'], id: ['Selanjutnya,', 'Satu lagi,', 'Sekalian,'] }
 
@@ -438,28 +447,35 @@ const CONNECT = { en: ['Next up:', 'One more thing:', 'While we are at it:'], id
 const join = (connector, line) =>
   connector.endsWith(',') ? `${connector} ${line.charAt(0).toLowerCase()}${line.slice(1)}` : `${connector} ${line}`
 
+/**
+ * Jawaban dua bagian. reply = kalimat utuh untuk suara (dengan kata sambung),
+ * parts = { body, next } untuk chat: body = hasil atau informasi, next = tawaran berikutnya.
+ * Chat menampilkan next sebagai paragraf sendiri, jadi kata sambungnya tidak perlu.
+ */
+const two = (body, next, connector) => ({
+  reply: next ? `${body} ${connector ? join(connector, next) : next}` : body,
+  parts: { body, next: next || null },
+})
+
 // Menyusun jawaban akhir + menentukan langkah berikutnya.
 function conclude(out, ctx, lang) {
   const done = out.mark && !ctx.done.includes(out.mark) ? [...ctx.done, out.mark] : ctx.done
-  let reply = L(out.reply, lang)
+  const body = L(out.reply, lang)
+  let said
   let pending = null
   if (out.next === 'SUGGEST') {
     const s = nextSuggestion(done, lang, ctx.scope)
-    reply = s ? `${reply} ${s.line}` : `${reply} ${L(ALL_DONE, lang)}`
+    said = s ? two(body, s.line) : two(`${body} ${L(ALL_DONE, lang)}`)
     pending = s ? s.step : null
   } else if (out.next) {
-    reply = `${reply} ${askOf(out.next, lang)}`
+    said = two(body, askOf(out.next, lang))
     pending = out.next
   } else {
     const s = nextSuggestion(done, lang, ctx.scope)
-    if (s) {
-      reply = `${reply} ${join(rnd(CONNECT[lang] || CONNECT.en), s.line)}`
-      pending = s.step
-    } else {
-      reply = `${reply} ${L(ALL_DONE, lang)}`
-    }
+    said = s ? two(body, s.line, rnd(CONNECT[lang] || CONNECT.en)) : two(`${body} ${L(ALL_DONE, lang)}`)
+    pending = s ? s.step : null
   }
-  return { reply, toast: out.toast, work: out.toast ? WORK[out.toast] : undefined, ctx: { ...ctx, pending, done } }
+  return { ...said, toast: out.toast, work: out.toast ? WORK[out.toast] : undefined, ctx: { ...ctx, pending, done } }
 }
 
 // User meminta aksi langsung. Aksi yang terlihat pembeli selalu minta izin dulu;
@@ -467,11 +483,12 @@ function conclude(out, ctx, lang) {
 function requestAction(stepId, askFirst, ctx, lang) {
   if (askFirst || STEPS[stepId].buyer) {
     const lead = lang === 'id' ? rnd(['Siap.', 'Boleh.']) : rnd(['Sure.', 'Happy to.'])
-    return { reply: `${lead} ${askOf(stepId, lang)}`, ctx: { ...ctx, pending: stepId } }
+    return { ...two(lead, askOf(stepId, lang)), ctx: { ...ctx, pending: stepId } }
   }
   const out = conclude(STEPS[stepId].yes, ctx, lang)
   const lead = lang === 'id' ? rnd(['Oke, aku kerjakan.', 'Siap, langsung aku kerjakan.']) : rnd(['On it.', 'Sure thing.'])
-  return { ...out, reply: `${lead} ${out.reply.replace(/^(Done|Beres)\.\s*/, '')}` }
+  const strip = (x) => x.replace(/^(Done|Beres)\.\s*/, '')
+  return { ...out, reply: `${lead} ${strip(out.reply)}`, parts: { ...out.parts, body: `${lead} ${strip(out.parts.body)}` } }
 }
 
 // ---------------------------------------------------------------------------
@@ -570,11 +587,11 @@ function topicReply(key, mode, ctx, lang) {
   const set = t[lang] || t.en
   const body = set[mode] || set.brief
   // Topik sudah menjelaskan masalahnya, jadi pakai pertanyaan versi pendek supaya tidak berulang
-  if (t.step) return { reply: `${body} ${L(STEPS[t.step].short, lang) || askOf(t.step, lang)}`, ctx: { ...ctx, pending: t.step } }
+  if (t.step) return { ...two(body, L(STEPS[t.step].short, lang) || askOf(t.step, lang)), ctx: { ...ctx, pending: t.step } }
   const s = nextSuggestion(ctx.done, lang, ctx.scope)
   return s
-    ? { reply: `${body} ${join(rnd(CONNECT[lang] || CONNECT.en), s.line)}`, ctx: { ...ctx, pending: s.step } }
-    : { reply: body, ctx: { ...ctx, pending: null } }
+    ? { ...two(body, s.line, rnd(CONNECT[lang] || CONNECT.en)), ctx: { ...ctx, pending: s.step } }
+    : { ...two(body), ctx: { ...ctx, pending: null } }
 }
 
 // ---------------------------------------------------------------------------
@@ -635,12 +652,12 @@ export function openingFor(tab, lang = 'en', { done = [], switched = false } = {
   if (item) {
     // Briefing dari fakta sudah menyebut masalahnya, jadi pakai pertanyaan versi pendek
     const ask = handWritten ? askOf(item.step, lang) : L(STEPS[item.step].short, lang) || askOf(item.step, lang)
-    return { reply: `${brief} ${ask}`, ctx: { ...ctx, pending: item.step } }
+    return { ...two(brief, ask), ctx: { ...ctx, pending: item.step } }
   }
   // Tidak ada yang bisa dikerjakan di tab ini: tawarkan hal penting di luar cakupannya
   const s = nextSuggestion(done, lang)
-  if (s) return { reply: `${brief} ${join(L(ELSEWHERE, lang), s.line)}`, ctx: { ...ctx, pending: s.step } }
-  return { reply: `${brief} ${L(ALL_DONE, lang).split('. ').pop()}`, ctx }
+  if (s) return { ...two(brief, s.line, L(ELSEWHERE, lang)), ctx: { ...ctx, pending: s.step } }
+  return { ...two(`${brief} ${L(ALL_DONE, lang).split('. ').pop()}`), ctx }
 }
 
 /**
@@ -673,18 +690,18 @@ export function respond({ text, mode, askFirst, tab, ctx: prev, lang = 'en' }) {
     const s = nextSuggestion(ctx.done, lang, ctx.scope)
     const thanks = id ? 'Sama-sama.' : 'Anytime.'
     return {
-      reply: s ? `${thanks} ${s.line}` : `${thanks} ${id ? 'Aku standby kalau butuh apa-apa.' : "I'm here if you need anything else."}`,
+      ...(s ? two(thanks, s.line) : two(`${thanks} ${id ? 'Aku standby kalau butuh apa-apa.' : "I'm here if you need anything else."}`)),
       ctx: { ...ctx, pending: s ? s.step : null },
     }
   }
   if (/^(hi|hello|hey|good morning|good afternoon|halo|hai|hallo|pagi|siang|sore|selamat pagi|selamat siang)\b/.test(t)) {
-    return { reply: `${id ? 'Halo!' : 'Hi!'} ${askOf('offer_suggest', lang)}`, ctx: { ...ctx, pending: 'offer_suggest' } }
+    return { ...two(id ? 'Halo!' : 'Hi!', askOf('offer_suggest', lang)), ctx: { ...ctx, pending: 'offer_suggest' } }
   }
   if (t.includes('what can you do') || t.includes('bisa apa') || any(t, ['help', 'help me', 'bantu', 'bantuin'])) {
     const intro = id
       ? 'Aku bisa cek pesanan, chat, dan stok di Shopee dan TikTok Shop, kasih saran harus ngapain dulu, dan langsung kerjakan begitu kamu bilang iya.'
       : 'I can check your orders, chats, and stock on Shopee and TikTok Shop, suggest what to do next, and take care of it once you say yes.'
-    return { reply: `${intro} ${askOf('offer_suggest', lang)}`, ctx: { ...ctx, pending: 'offer_suggest' } }
+    return { ...two(intro, askOf('offer_suggest', lang)), ctx: { ...ctx, pending: 'offer_suggest' } }
   }
 
   // 3) Minta rekomendasi
@@ -717,16 +734,19 @@ export function respond({ text, mode, askFirst, tab, ctx: prev, lang = 'en' }) {
   if (any(t, ['order', 'orders', 'pesanan', 'orderan', 'resi', 'kirim', 'ship', 'shipping', 'label', 'labels', 'courier', 'kurir'])) return topicReply('orders', mode, ctx, lang)
   if (any(t, ['summary', 'brief me', 'overview', 'catch me up', "what's up", 'whats up', 'update', 'ringkasan', 'gimana', 'kabar'])) {
     const o = openingFor(tab, lang, { done: ctx.done })
-    return { reply: o.reply, ctx: { ...ctx, pending: o.ctx.pending } }
+    return { reply: o.reply, parts: o.parts, ctx: { ...ctx, pending: o.ctx.pending } }
   }
 
   // 6) Ya/tidak tanpa konteks
   if (replyKind(t) === 'yes') {
-    return { reply: `${id ? 'Siap bantu.' : 'Happy to help.'} ${askOf('offer_suggest', lang)}`, ctx: { ...ctx, pending: 'offer_suggest' } }
+    return { ...two(id ? 'Siap bantu.' : 'Happy to help.', askOf('offer_suggest', lang)), ctx: { ...ctx, pending: 'offer_suggest' } }
   }
 
   return {
-    reply: `${id ? 'Aku asisten demo, jadi cuma bisa bantu soal pesanan, chat, dan stok.' : "I'm a demo assistant, so I stick to orders, chats, and stock."} ${askOf('offer_suggest', lang)}`,
+    ...two(
+      id ? 'Aku asisten demo, jadi cuma bisa bantu soal pesanan, chat, dan stok.' : "I'm a demo assistant, so I stick to orders, chats, and stock.",
+      askOf('offer_suggest', lang)
+    ),
     ctx: { ...ctx, pending: 'offer_suggest' },
   }
 }
