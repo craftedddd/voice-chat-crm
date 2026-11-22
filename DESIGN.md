@@ -13,7 +13,7 @@ Riwayat audit dan alasan setiap penggabungan nilai: [docs/design-audit.md](docs/
 2. **Tidak ada hex, rgba, atau angka px baru** untuk warna, ukuran font, weight, radius, shadow, atau durasi. Kalau butuh nilai yang belum ada, tambahkan token dulu di `:root`, lalu catat di file ini.
 3. **Spacing memakai skala `--s-*`** untuk semua komponen baru. Nilai `clamp()` di layout mobile adalah pengecualian karena hasil penyesuaian dengan desain Figma.
 4. **Status selalu berpasangan**: warna utama untuk ikon atau titik, `-soft` untuk latar, `-text` untuk teks di atas latar `-soft`.
-5. Warna orb dan `--grad-mobile` adalah **ilustrasi**. Jangan dipakai untuk komponen.
+5. Warna orb dan `--grad-mobile` adalah **ilustrasi**. Jangan dipakai untuk komponen. `--grad-mobile-end` (warna terakhir gradien itu) hanya dipakai sebagai latar `html`/`body` di ≤ 640px, supaya area di belakang toolbar Safari iOS menyambung dengan gradien.
 
 ---
 
@@ -219,6 +219,6 @@ Pakai ulang komponen ini sebelum membuat yang baru.
 | > 1220px | Tiga kolom: navigasi, konten, Voice Settings |
 | ≤ 1220px | Konten dan Voice Settings ditumpuk |
 | ≤ 960px | Panel navigasi jadi drawer, dengan menu utama di balik tombol "‹ AI" |
-| ≤ 640px | Rail disembunyikan, voice chat layar penuh, Voice Settings di bottom sheet |
+| ≤ 640px | Rail disembunyikan, voice chat layar penuh, Voice Settings di bottom sheet. Latar `html`/`body` memakai `--grad-mobile-end` karena toolbar browser HP mengambang di atas halaman |
 
 Setiap screen baru dicek minimal di 1440, 900, dan 393px.

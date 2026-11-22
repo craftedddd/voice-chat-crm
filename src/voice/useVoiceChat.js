@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { getSR, isVoiceSupported, primeSpeech, speak, createMicMeter } from './speech.js'
-import { respond, openingFor, cardFor, stillWaiting, checkTomorrow, undoReply, nothingToUndo, switchTo, switchedLine, tabName } from './brain.js'
+import { respond, openingFor, cardFor, stillWaiting, checkTomorrow, undoReply, nothingToUndo, switchTo, switchedLine, tabName, replyKind } from './brain.js'
 
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v))
 // Tempo langkah kerja Live actions (ms): cukup lambat untuk terbaca, tidak bikin menunggu
@@ -254,6 +254,20 @@ export default function useVoiceChat({ tab, aiMode, askFirst, voiceLang = 'en', 
     })
   }
 
+  /**
+   * Ucapan pendek seperti "gas" atau "iya" sering salah dengar. Kalau assistant sedang menunggu
+   * jawaban ya/tidak dan hasil utama tidak terbaca sebagai jawaban, pakai kemungkinan lain
+   * dari recognizer yang terbaca sebagai jawaban.
+   */
+  function pickHeard(text, result, s) {
+    if (!s.ctx?.pending || replyKind(text)) return text
+    for (let i = 1; i < result.length; i++) {
+      const alt = result[i]?.transcript?.trim()
+      if (alt && replyKind(alt)) return alt
+    }
+    return text
+  }
+
   function handleFinal(text) {
     const s = r.current
     stopRecognition()
@@ -356,7 +370,7 @@ export default function useVoiceChat({ tab, aiMode, askFirst, voiceLang = 'en', 
     rec.lang = s.lang === 'id' ? 'id-ID' : 'en-US'
     rec.interimResults = true
     rec.continuous = false
-    rec.maxAlternatives = 1
+    rec.maxAlternatives = 4
     s.rec = rec
 
     rec.onresult = (e) => {
@@ -369,7 +383,8 @@ export default function useVoiceChat({ tab, aiMode, askFirst, voiceLang = 'en', 
         .trim()
       if (!text) return
       setCaption({ who: 'user', lead: text, tail: '' })
-      if (e.results[e.results.length - 1].isFinal) handleFinal(text)
+      const last = e.results[e.results.length - 1]
+      if (last.isFinal) handleFinal(pickHeard(text, last, s))
     }
 
     rec.onerror = (e) => {

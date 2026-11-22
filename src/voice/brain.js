@@ -583,10 +583,31 @@ function topicReply(key, mode, ctx, lang) {
 const norm = (s) => s.toLowerCase().replace(/[^a-z0-9$' ]/g, ' ').replace(/\s+/g, ' ').trim()
 const any = (t, list) => list.some((w) => new RegExp(`\\b${w}\\b`).test(t))
 
-const YES =
-  /^(yes|yeah|yep|yup|sure|ok|okay|go ahead|do it|please|please do|sounds good|that works|let's do it|lets do it|absolutely|of course|why not|iya|iyaa|ya|yaa|boleh|gas|gass|gaskan|oke|oke deh|okey|sip|siap|lanjut|lanjutkan|kirim aja|mau|yuk|ayo|bisa|tentu|silakan)\b/
-const NO =
-  /^(no|nope|nah|not now|not yet|don't|do not|never mind|maybe later|skip|leave it|nggak|ngga|gak|ga|enggak|engga|tidak|nanti aja|nanti dulu|nanti|jangan dulu|jangan|ga usah|gak usah|nggak usah|belum)\b/
+// Jawaban ya/tidak. Urutannya penting: penolakan yang jelas ("ya nggak usah", "nanti aja") dicek
+// dulu, lalu persetujuan di mana pun dalam kalimat ("iya, kerjakan", "oke gas", "gak papa"),
+// lalu kata pembuka ("nggak", "iya"). Huruf yang dipanjangkan ("iyaaa", "gasss", "siapp") ikut cocok.
+const NO_ANY =
+  /\b(not now|not yet|not today|never mind|nevermind|maybe later|no thanks|no thank you|leave it|skip (it|that|this)|hold off|don't do (it|that)|please don't|(n?g+a+k?|e+n+g+g?a+k?|ti+d+a+k|nda+k|ka+ga+k) ?(usah|perlu|dulu|jadi|mau|bisa|boleh|sekarang)|gausah|tidak perlu|jangan(?! lupa)|nanti (aja|saja|dulu|ya|deh|lagi)|ntar (aja|dulu)|entar (aja|dulu)|lain kali|belum (dulu|perlu|sekarang|usah)|tunda( dulu)?|lewati|lewatin|skip aja|batal)\b/
+const YES_ANY =
+  /\b(gas+|gas+(kan|keun|in)|oke+ gas+|sikat|hajar|eksekusi|kerjakan|kerjain|lakukan|lakuin|jalankan|jalanin|prosesin|proses aja|langsung (aja|saja|kerjakan|kerjain)|kirim aja|bikin aja|buat aja|boleh( banget| deh| dong| aja)?|(n?g+a+k?|e+n+g+g?a+k?) ?(papa|apa apa|apa2|masalah)|gapapa|tidak (apa apa|masalah)|no (problem|worries)|go ahead|do it|go for it|let'?s do it|let'?s go|sounds good|that works|sure thing|of course|why not|please do|make it happen|proceed|send it|yes please)\b/
+const NO_START =
+  /^(no+|nope|nah|don'?t|do not|skip|n?g+a+k?|e+n+g+g?a+k?|ti+d+a+k|nda+k|ka+ga+k|belum)\b/
+const YES_START =
+  /^(yes+|yeah|yea|yep|yup|sure|ok+|okay|okey|ok+e+|oke+h|okelah|oke deh|alright|all right|right|correct|fine|absolutely|definitely|certainly|i+y+a+h?|ya+h?|ye+|yo+i|ay+o+k?|a+y+u+k|yu+k|hayu+k|ku+y|cu+s|si+p+|sia+p+|tentu|betul|bener|benar|setuju|lanjut(kan)?|monggo|mangga|silah?kan|ya ?udah|udah gas)\b/
+// Kata yang hanya berarti "ya" kalau diucapkan sendiri ("mau tanya stok" bukan persetujuan)
+const YES_ALONE = /^(mau|bisa|please|langsung|proses)( dong| deh| banget| ya| aja| saja)?$/
+
+/** 'yes', 'no', atau null kalau kalimat ini bukan jawaban ya/tidak. */
+export function replyKind(text) {
+  const t = norm(text)
+  if (!t) return null
+  if (NO_ANY.test(t)) return 'no'
+  if (YES_ANY.test(t)) return 'yes'
+  if (NO_START.test(t)) return 'no'
+  if (YES_START.test(t) || YES_ALONE.test(t)) return 'yes'
+  return null
+}
+
 const UNDO = /\b(undo|take (that|it) back|revert that|cancel that|batalin|batalkan|nggak jadi|gak jadi|ga jadi|enggak jadi|tidak jadi|ga jadi deh)\b/
 const BYE = [
   'goodbye', 'bye', 'hang up', "that's all", 'end call', 'end the call',
@@ -639,8 +660,9 @@ export function respond({ text, mode, askFirst, tab, ctx: prev, lang = 'en' }) {
   // 1) Jawaban untuk tawaran / pertanyaan sebelumnya
   if (ctx.pending && STEPS[ctx.pending]) {
     const step = STEPS[ctx.pending]
-    if (YES.test(t)) return conclude(step.yes, ctx, lang)
-    if (NO.test(t)) return conclude(step.no, ctx, lang)
+    const kind = replyKind(t)
+    if (kind === 'yes') return conclude(step.yes, ctx, lang)
+    if (kind === 'no') return conclude(step.no, ctx, lang)
   }
 
   // 2) Percakapan umum
@@ -699,7 +721,7 @@ export function respond({ text, mode, askFirst, tab, ctx: prev, lang = 'en' }) {
   }
 
   // 6) Ya/tidak tanpa konteks
-  if (YES.test(t)) {
+  if (replyKind(t) === 'yes') {
     return { reply: `${id ? 'Siap bantu.' : 'Happy to help.'} ${askOf('offer_suggest', lang)}`, ctx: { ...ctx, pending: 'offer_suggest' } }
   }
 

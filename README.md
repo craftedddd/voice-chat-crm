@@ -25,7 +25,7 @@ orb gradien dibuat murni dengan CSS.
 Contoh yang bisa diucapkan:
 
 - **English:** "What orders are due today?", "Any unanswered chats?", "How's the black hoodie stock?", "Tell me about the complaint", "How were sales yesterday?", "Reply to the size questions", "Sync the stock", "Offer an exchange", "Undo that", "Goodbye". Saat ditawari bantuan: "yes", "sure", "not now".
-- **Bahasa Indonesia:** "Pesanan hari ini gimana?", "Ada chat apa aja?", "Gimana stok hoodie?", "Ada komplain?", "Rekap omzet kemarin dong", "Balas chat yang nanya ukuran", "Samakan stok", "Tawarkan tukar ke pembeli", "Batalin", "Udah dulu". Saat ditawari bantuan: "iya", "gas", "boleh", "sip", "nanti aja", "nggak usah".
+- **Bahasa Indonesia:** "Pesanan hari ini gimana?", "Ada chat apa aja?", "Gimana stok hoodie?", "Ada komplain?", "Rekap omzet kemarin dong", "Balas chat yang nanya ukuran", "Samakan stok", "Tawarkan tukar ke pembeli", "Batalin", "Udah dulu". Saat ditawari bantuan: "iya", "gas", "gaskeun", "oke gas", "ya kerjakan", "kerjain aja", "langsung aja", "boleh", "sip", "yaudah", "gak papa", atau menolak dengan "nanti aja", "nggak usah", "ya nggak usah", "jangan dulu", "lain kali". Penolakan dicek lebih dulu, jadi "iya, nanti aja" dianggap menolak. Kalau ucapan pendek salah dengar, assistant memeriksa beberapa kemungkinan hasil dengar dari browser sebelum menyerah.
 
 **UI lainnya:**
 

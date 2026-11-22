@@ -105,7 +105,8 @@
   --accent-wash: rgba(75, 90, 228, 0.09);
 
   /* ilustrasi (khusus latar dan orb, bukan untuk komponen) */
-  --grad-mobile: linear-gradient(180deg, #ffffff 0%, #f3fbff 15%, #e0f3ff 41%, #def2ff 53%, #e6f4ff 76%, #ebf5ff 100%);
+  --grad-mobile-end: #ebf5ff; /* warna terakhir gradien, juga latar di belakang toolbar browser HP */
+  --grad-mobile: linear-gradient(180deg, #ffffff 0%, #f3fbff 15%, #e0f3ff 41%, #def2ff 53%, #e6f4ff 76%, var(--grad-mobile-end) 100%);
 
   /* ----------------------------------------------------------
      TIPOGRAFI
@@ -1955,6 +1956,9 @@ body.is-dragging-tab { cursor: grabbing; user-select: none; -webkit-user-select:
    di tengah, Voice Settings pindah ke bottom sheet (ikon gear).
 ============================================================ */
 @media (max-width: 640px) {
+  /* Toolbar Safari iOS mengambang di atas halaman: area di belakangnya memakai latar html/body,
+     jadi disamakan dengan ujung gradien supaya gradien tidak terlihat terpotong */
+  html, body { background: var(--grad-mobile-end); }
   .app { height: 100dvh; min-height: 0; }
 
   .main {
