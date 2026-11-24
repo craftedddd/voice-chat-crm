@@ -137,6 +137,7 @@ Letter spacing: `--ls-tight` untuk judul dan teks besar, `--ls-caps` untuk label
 - Toast lain boleh menggantikannya; setelah toast itu selesai, pertanyaannya muncul lagi.
 - Tombol = jawaban "ya". Mengetuk teks membuka tab Actions. Menolak cukup lewat suara atau di feed.
 - Toast hasil aksi ("4 shipping labels ready" + Undo) dan toast undo lewat suara selalu tampil, termasuk saat feed terlihat. Undo yang diklik langsung di feed tidak memunculkan toast.
+- Pengecualian: di mode Chat ≤ 640px, toast hasil aksi dan toast undo tidak muncul, karena kartu aksinya sudah terlihat di percakapan.
 
 Pengecualian: koreografi toast (morph titik ke pill) memakai durasi literal karena terikat dengan timer di `Toast.jsx` (`T_DOT`, `T_CLOSE`, `T_LEAVE`). Ubah keduanya bersamaan.
 
@@ -162,12 +163,24 @@ Pengecualian: koreografi toast (morph titik ke pill) memakai durasi literal kare
 - Jawaban assistant di chat dipisah jadi dua paragraf berjarak `--s-3` (`.aimsg`, data dari `parts` di `brain.js`): yang sudah dikerjakan atau informasinya, lalu tawaran berikutnya. Warna dan ukurannya sama, hanya jarak yang membedakan.
   - Chip jawaban (`.chip--toggle`) ada di bawah paragraf kedua, hanya pada pesan terakhir yang masih menunggu jawaban.
   - Kata sambung ("Next up:", "One more thing:") tidak ditulis di chat karena paragraf baru sudah memisahkannya. Di Voice tetap diucapkan.
-  - Undo untuk aksi ada di Live actions dan toast, tidak di dalam pesan.
+  - Undo untuk aksi ada di Live actions dan toast (desktop dan tablet) atau di kartu aksi (≤ 640px), tidak di dalam pesan.
   - Transkrip call tetap teks utuh seperti yang diucapkan. Kalau pertanyaannya datang dari call, chip tampil di bawah percakapan.
 - Toast persetujuan tidak dimunculkan di mode Chat, karena chip jawabannya sudah ada di percakapan.
+- **Kartu aksi di percakapan (≤ 640px).** Di HP feed Actions tersembunyi di sheet, jadi aksi ditampilkan langsung di chat (`.chatact`, pesan `who: 'action'` yang membaca isinya dari feed lewat `actionId`). Di layar lebih besar kartu ini tidak tampil karena feed ada di samping.
+  - Tempatnya tepat setelah pesan yang memicunya, sebelum balasan assistant. Assistant baru melapor setelah aksinya selesai. Ini juga berlaku untuk aksi dari call.
+  - Tanpa bingkai. Memakai titik timeline (`.tnode`), judul (`.tev__title`), jam (`.tev__time`), langkah (`.tstep`), dan link (`.tlink`) yang sama dengan feed, tanpa garis vertikal.
+  - Berjalan: langkah dicentang satu per satu, titik loading chat disembunyikan karena kartunya sudah menunjukkan proses.
+  - Selesai: langkah tetap terlihat sebentar (`COLLAPSE_MS`), lalu kartu menyusut jadi satu baris: titik, judul hasil, chevron bawah (`.chatact__chev`), dan jam. Seluruh baris adalah tombol (`aria-expanded`) dengan ruang sentuh `--s-1` atas dan bawah. Saat dibuka, chevron berputar 180° (`--dur-base`) dan tampil langkah, detail, Open, dan Undo.
+  - Undo: judul dicoret, titik jadi cincin abu-abu, isi lipatan "Undone".
+  - Pola lipat ini khusus chat. Feed Actions tidak berubah.
 - Kolom ketik (`.composer`): tombol mic untuk pindah ke Voice dan tombol kirim bulat aksen.
 - Call tetap berjalan saat pindah ke Chat. Penandanya `.callbar` di atas percakapan: titik berdenyut, "Voice call", durasi, status, Mute, dan End. Ketuk penanda untuk kembali ke Voice. Pesan yang diketik saat call dijawab dengan suara juga.
-- Ganti tab atau bahasa saat chat: konfirmasinya masuk ke percakapan, sama seperti saat call.
+- Ganti bahasa saat chat: konfirmasinya masuk ke percakapan, sama seperti saat call.
+- **Ganti tab saat chat (tanpa call):**
+  - Perpindahan ditandai pemisah nama tab (pesan `who: 'tab'`, gaya `.chatdiv` yang sama dengan pemisah Voice call / Chat). Kalimat "Okay, switching to …" tidak ditulis di chat. Saat call kalimat itu tetap diucapkan, karena di sana tidak ada penanda visual.
+  - Tab yang sudah beres cukup satu kalimat bernama tab ("Nothing urgent left in Orders."). Kalau tawaran dari tab lain sama dengan pertanyaan yang masih menunggu, ditulis sebagai pengingat singkat (`REMIND` di `brain.js`), tidak diulang utuh. Chip pindah ke pesan ini.
+  - Pindah tab lagi sebelum ada pesan baru (belum mengetik, belum menjawab): pemisah dan briefing tab sebelumnya memudar (`.chatcard__item.is-leaving`, `--dur-fast`) lalu diganti. Begitu ada interaksi, briefing itu tetap di percakapan. Durasi pudar di CSS dan `BRIEF_FADE_MS` di `useVoiceChat.js` harus sama.
+  - Kembali ke tab asal sebelum ada interaksi (misalnya Everything lalu Orders lalu Everything): briefing yang belum disentuh dihapus tanpa pemisah baru, dan chip kembali ke pertanyaan terakhir di tab asal.
 - Animasi chat:
   - Pesan baru (bubble user, catatan) naik halus `--dur-base`.
   - Jawaban assistant didahului indikator mengetik gooey (`.chatdots`): titik `--accent` yang membelah jadi dua lalu menyatu lagi seperti cairan, satu putaran `--dur-spin`, memakai filter SVG (blur lalu dipertajam). Di `prefers-reduced-motion` titiknya diam. Setelah itu jawaban ditulis kata demi kata (`.sword`: fade, naik 3px, blur tipis, `--dur-slow`). Paling lama 40 ms per kata dan sekitar 1,5 detik total.
@@ -245,7 +258,7 @@ Pakai ulang komponen ini sebelum membuat yang baru.
 | Caption live | `LiveCaption` di `VoiceCard.jsx` | Jendela 3 baris tanpa scroll (`.capwin`) |
 | Tab context | `ContextTabs.jsx` | Deretan tab dengan drag, zona hapus, dan popover editor |
 | Switch mode | `ModeSwitch` di `App.jsx`, `.modeswitch` | Chat atau Voice, memakai `.seg` |
-| Kartu chat | `ChatCard.jsx` | Percakapan (`.chatmsg`, jawaban dua paragraf `.aimsg`), chip jawaban, `.composer`, dan `.callbar` saat call berjalan |
+| Kartu chat | `ChatCard.jsx` | Percakapan (`.chatmsg`, jawaban dua paragraf `.aimsg`), chip jawaban, `.composer`, `.callbar` saat call berjalan, dan kartu aksi lipat `.chatact` (≤ 640px) |
 | Editor context | `ContextEditor.jsx` | Form custom context, dipakai di popover dan bottom sheet |
 | Chip pilihan | `.chip--toggle` | Chip yang bisa dipilih, `.is-on` saat terpilih |
 

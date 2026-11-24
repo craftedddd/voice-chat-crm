@@ -753,7 +753,13 @@ body.is-dragging-tab { cursor: grabbing; user-select: none; -webkit-user-select:
   flex-direction: column;
   gap: var(--s-4);
 }
-.chatcard__item { display: flex; flex-direction: column; gap: var(--s-4); }
+.chatcard__item {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-4);
+  transition: opacity var(--dur-fast) var(--ease); /* sama dengan BRIEF_FADE_MS di useVoiceChat.js */
+}
+.chatcard__item.is-leaving { opacity: 0; } /* briefing tab yang diganti karena user pindah tab lagi */
 .chatmsg {
   max-width: 520px;
   font-size: var(--fs-lg);
@@ -784,12 +790,48 @@ body.is-dragging-tab { cursor: grabbing; user-select: none; -webkit-user-select:
 .chatcard__chips { animation: chat-in var(--dur-base) var(--ease) both; }
 .sword { display: inline-block; animation: word-in var(--dur-slow) var(--ease) both; }
 .chatmsg__unspoken { color: transparent; } /* belum diucapkan: tempatnya sudah disiapkan supaya bubble tidak melompat */
+/* Kartu aksi di percakapan (mode Chat di HP): tanpa bingkai, memakai titik dan langkah dari feed Actions.
+   Setelah selesai menyusut jadi satu baris; ketuk barisnya untuk membuka. */
+.tev.chatact { padding-bottom: 0; }
+.tev.chatact::before { display: none; }
+.chatact.is-new,
+.chatdiv.is-new { animation: chat-in var(--dur-base) var(--ease) both; }
+.chatact .tnode { top: calc(var(--s-1) + 3px); } /* sejajar dengan judul yang diberi ruang sentuh */
+.chatact__head {
+  display: flex;
+  align-items: center;
+  gap: var(--s-1-5);
+  width: 100%;
+  padding: var(--s-1) 0;
+  text-align: left;
+}
+button.chatact__head { cursor: pointer; }
+.chatact__head .tev__time { margin-left: auto; }
+.chatact__chev {
+  flex: 0 0 auto;
+  color: var(--icon);
+  transition: transform var(--dur-base) var(--ease);
+}
+.chatact__head[aria-expanded='true'] .chatact__chev { transform: rotate(180deg); }
+.chatact__head:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--r-sm);
+}
+.chatact__fold { min-height: 0; overflow: hidden; }
+.chatact__fold .tev__steps { padding-top: 0; }
+.chatact__meta { margin-top: var(--s-1-5); }
+
 @keyframes chat-in { from { opacity: 0; transform: translateY(6px); } }
 @keyframes word-in { from { opacity: 0; transform: translateY(3px); filter: blur(2px); } }
 @media (prefers-reduced-motion: reduce) {
   .chatmsg.is-new,
   .chatcard__chips,
+  .chatact.is-new,
+  .chatdiv.is-new,
   .sword { animation: none; }
+  .chatcard__item { transition: none; }
+  .chatact__chev { transition: none; }
 }
 
 /* Pemisah saat percakapan berpindah antara chat dan call */

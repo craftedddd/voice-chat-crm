@@ -35,6 +35,8 @@ Contoh yang bisa diucapkan:
 - Jawaban assistant ditulis kata demi kata setelah titik "mengetik". Saat call berjalan, bubble jawaban mengikuti suara yang sedang diucapkan
 - Pindah ke Voice setelah mengobrol di chat: layar Voice menampilkan pertanyaan terakhir ("Continuing from chat"), dan call dibuka dengan "Picking up from chat." tanpa membacakan briefing ulang
 - Call tetap berjalan saat pindah ke Chat. Penanda call di atas percakapan menampilkan durasi dan status, dengan tombol Mute dan End. Pesan yang diketik saat call dijawab dengan suara juga
+- Ganti tab saat chat: percakapan diberi pemisah nama tab dan briefing singkat tab itu. Kalau user pindah tab lagi sebelum menjawab apa pun, briefing sebelumnya diganti, jadi teksnya tidak menumpuk
+- Di HP, aksi tampil langsung di percakapan: langkahnya dicentang satu per satu, lalu menyusut jadi satu baris yang bisa diketuk untuk melihat detail, Open, dan Undo
 
 **UI lainnya:**
 
@@ -102,7 +104,7 @@ src/
   components/
     NavSide.jsx            # icon rail kiri, panel navigasi AI, menu utama di drawer
     VoiceCard.jsx          # kartu sesi voice chat (orb, caption, kontrol)
-    ChatCard.jsx           # mode Chat: percakapan bersama, chip jawaban, kolom ketik, penanda call
+    ChatCard.jsx           # mode Chat: percakapan bersama, chip jawaban, kolom ketik, penanda call, kartu aksi lipat
     Orb.jsx                # orb kaca yang mengikuti level suara
     SettingsPanel.jsx      # panel Assistant settings (Language + AI Mode + Quick Settings)
     SessionSummary.jsx     # ringkasan sesi setelah voice chat selesai

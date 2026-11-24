@@ -1,19 +1,19 @@
 import { useEffect, useRef, useState } from 'react'
 import { CheckIcon } from '../icons.jsx'
 
-const OPEN_SOON = {
+export const OPEN_SOON = {
   label: 'Orders are coming soon',
   reply: 'Chats are coming soon',
   stock: 'Products are coming soon',
 }
 // Langkah tetap terlihat sebentar setelah selesai, lalu item menyusut jadi satu baris
-const COLLAPSE_MS = 1100
+export const COLLAPSE_MS = 1100
 
 // Detik call (angka) atau jam dari mode Chat (teks, misalnya "14:05")
-const clock = (t) => (typeof t === 'string' ? t : `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`)
+export const clock = (t) => (typeof t === 'string' ? t : `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`)
 
 /** Titik di garis waktu. Bentuknya yang menandai status, bukan warnanya. */
-function Node({ state }) {
+export function Node({ state }) {
   return (
     <span className={`tnode tnode--${state}`} aria-hidden="true">
       {state === 'running' && (

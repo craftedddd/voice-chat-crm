@@ -1,5 +1,6 @@
 import { Fragment, useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { MicIcon, MicOffIcon, SendIcon, CloseIcon } from '../icons.jsx'
+import { MicIcon, MicOffIcon, SendIcon, CloseIcon, CheckIcon, ChevronDownIcon } from '../icons.jsx'
+import { Node, OPEN_SOON, COLLAPSE_MS, clock as feedClock } from './ActionFeed.jsx'
 
 const clock = (t) => `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`
 const CALL_STATUS = {
@@ -84,6 +85,94 @@ function AiMessage({ m, animate, skip, active, chips, onTick, onDone }) {
   )
 }
 
+/**
+ * Kartu aksi di percakapan (mode Chat di HP). Saat berjalan langkahnya dicentang satu per satu.
+ * Setelah selesai menyusut jadi satu baris; ketuk barisnya untuk melihat langkah, detail, Open, dan Undo.
+ */
+function ChatAction({ item, isNew, onUndo, onToast }) {
+  const { status, steps = [], step = 0 } = item
+  const running = status === 'running'
+  const undone = status === 'undone'
+  const settled = () => !!item.doneAt && Date.now() - item.doneAt > COLLAPSE_MS
+  const [open, setOpen] = useState(() => running)
+  const bodyId = `chatact-${item.id}`
+
+  // Setelah selesai, langkah tetap terlihat sebentar lalu kartu menyusut sendiri
+  useEffect(() => {
+    if (running) return setOpen(true)
+    if (undone || settled()) return
+    const id = setTimeout(() => setOpen(false), COLLAPSE_MS - (Date.now() - (item.doneAt || Date.now())))
+    return () => clearTimeout(id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status, item.doneAt])
+
+  const title = running ? item.title : item.doneTitle
+  return (
+    <div className={`tev chatact ${isNew ? 'is-new' : ''}`}>
+      <Node state={status} />
+      <div className="tev__body">
+        {running ? (
+          <p className="chatact__head">
+            <span className="tev__title">{title}</span>
+            <span className="tev__time">{feedClock(item.t)}</span>
+          </p>
+        ) : (
+          <button
+            type="button"
+            className="chatact__head"
+            aria-expanded={open}
+            aria-controls={bodyId}
+            onClick={() => setOpen((o) => !o)}
+          >
+            <span className={`tev__title ${undone ? 'is-struck' : ''}`}>{title}</span>
+            <ChevronDownIcon size={14} className="chatact__chev" />
+            <span className="tev__time">{feedClock(item.t)}</span>
+          </button>
+        )}
+
+        <div id={bodyId} className={`tev__fold ${open ? '' : 'is-collapsed'}`} inert={open ? undefined : ''}>
+          <div className="chatact__fold">
+            {undone ? (
+              <p className="tev__meta">Undone</p>
+            ) : (
+              <>
+                {steps.length > 0 && (
+                  <ol className="tev__steps">
+                    {steps.slice(0, Math.min(step + 1, steps.length)).map((s, i) => {
+                      const ok = !running || i < step
+                      return (
+                        <li key={i} className={`tstep ${ok ? 'is-done' : 'is-current'}`}>
+                          <span className="tstep__mark" aria-hidden="true">
+                            {ok && <CheckIcon size={11} strokeWidth={2} />}
+                          </span>
+                          {s}
+                        </li>
+                      )
+                    })}
+                  </ol>
+                )}
+                {!running && (
+                  <p className="tev__meta chatact__meta">
+                    {item.detail}
+                    <span className="tev__links">
+                      <button type="button" className="tlink tlink--accent" onClick={() => onToast(OPEN_SOON[item.kind] || 'Coming soon')}>
+                        Open
+                      </button>
+                      <button type="button" className="tlink" onClick={() => onUndo(item.id)}>
+                        Undo
+                      </button>
+                    </span>
+                  </p>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 /** Penanda call yang masih berjalan saat user pindah ke mode Chat. */
 function CallBar({ call, onOpen, onMute, onEnd }) {
   return (
@@ -117,6 +206,10 @@ function CallBar({ call, onOpen, onMute, onEnd }) {
  */
 export default function ChatCard({
   messages,
+  feed = [],
+  inlineActions,
+  onUndo,
+  onToast,
   typing,
   waiting,
   call,
@@ -141,6 +234,10 @@ export default function ChatCard({
   const streaming = messages.some((m) => streams(m) && !doneIds.has(m.id) && m.id > skipAll)
   const markDone = (id) => setDoneIds((d) => (d.has(id) ? d : new Set(d).add(id)))
 
+  // Kartu aksi hanya tampil di percakapan pada layar HP; di layar lebih besar feed Actions ada di samping
+  const actionOf = (m) => feed.find((x) => x.id === m.actionId)
+  const shown = inlineActions ? messages : messages.filter((m) => m.who !== 'action')
+
   const scrollToEnd = () => {
     const el = logRef.current
     if (el) el.scrollTop = el.scrollHeight
@@ -151,8 +248,11 @@ export default function ChatCard({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // Langkah kartu aksi yang sedang berjalan. Undo atau buka-tutup kartu lama tidak ikut menggulir.
+  const runningKey = inlineActions ? feed.filter((x) => x.status === 'running').map((x) => `${x.id}:${x.step}`).join() : ''
+
   // Selalu gulir ke pesan terbaru
-  useLayoutEffect(scrollToEnd, [messages.length, typing, waiting?.step, streaming, spoken?.n])
+  useLayoutEffect(scrollToEnd, [messages.length, typing, waiting?.step, streaming, spoken?.n, runningKey])
 
   const submit = (e) => {
     e.preventDefault()
@@ -170,7 +270,9 @@ export default function ChatCard({
   const speakingNow = (m) => inCall && call.status === 'speaking' && spoken && spoken.id === m.id
 
   // Chip jawaban hanya di bawah pesan terakhir yang masih menunggu jawaban
-  const last = messages[messages.length - 1]
+  const last = shown[shown.length - 1]
+  // Kartu aksi yang sedang berjalan sudah menunjukkan prosesnya, jadi titik loading disembunyikan
+  const working = last?.who === 'action' && actionOf(last)?.status === 'running'
   const cardHost = waiting && !typing && last && last.who === 'ai' && last.parts?.next ? last.id : null
   const chips = waiting && (
     <div className="chips chatcard__chips" key={waiting.step}>
@@ -189,12 +291,19 @@ export default function ChatCard({
       {inCall && <CallBar call={call} onOpen={onVoice} onMute={onMute} onEnd={onEnd} />}
 
       <div className="chatcard__log" role="log" aria-live="polite" ref={logRef}>
-        {messages.map((m, i) => {
-          const prev = messages[i - 1]
+        {shown.map((m, i) => {
+          const prev = shown[i - 1]
           return (
-            <div key={m.id} className="chatcard__item">
-              {prev && prev.via !== m.via && <p className="chatdiv">{m.via === 'voice' ? 'Voice call' : 'Chat'}</p>}
-              {m.who === 'user' ? (
+            <div key={m.id} className={`chatcard__item ${m.leaving ? 'is-leaving' : ''}`}>
+              {prev && prev.via !== m.via && m.who !== 'tab' && (
+                <p className="chatdiv">{m.via === 'voice' ? 'Voice call' : 'Chat'}</p>
+              )}
+              {m.who === 'tab' ? (
+                // Pindah tab di mode Chat: pemisah nama tab, gayanya sama dengan pemisah Voice call / Chat
+                <p className={`chatdiv ${m.id > mountMax ? 'is-new' : ''}`}>{m.text}</p>
+              ) : m.who === 'action' ? (
+                actionOf(m) && <ChatAction item={actionOf(m)} isNew={m.id > mountMax} onUndo={onUndo} onToast={onToast} />
+              ) : m.who === 'user' ? (
                 <p className={`chatmsg chatmsg--user ${m.id > mountMax ? 'is-new' : ''}`}>{m.text}</p>
               ) : m.who === 'note' ? (
                 <p className={`chatmsg chatmsg--note ${m.id > mountMax ? 'is-new' : ''}`}>
@@ -235,7 +344,7 @@ export default function ChatCard({
           )
         })}
 
-        {typing && (
+        {typing && !working && (
           <p className="chatdots" role="status" aria-label="Assistant is typing">
             {/* Efek gooey: blur lalu dipertajam lagi, jadi dua titik yang berdekatan melebur seperti cairan */}
             <svg className="chatdots__defs" aria-hidden="true" focusable="false">

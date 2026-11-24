@@ -6,6 +6,7 @@ const clamp = (v, a, b) => Math.min(b, Math.max(a, v))
 // Tempo langkah kerja Live actions (ms): cukup lambat untuk terbaca, tidak bikin menunggu
 const STEP_MS = () => 520 + Math.random() * 380
 const SETTLE_MS = 260 // jeda setelah aksi selesai sebelum assistant bicara
+const BRIEF_FADE_MS = 160 // briefing tab yang diganti memudar dulu; sama dengan --dur-fast di .chatcard__item
 const formatClock = (t) => `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`
 
 // Toast aksi demo -> item "Actions taken" di ringkasan sesi.
@@ -25,7 +26,7 @@ const undoneText = (a) => a.undone
  * idle -> connecting -> listening <-> thinking -> speaking -> listening ... -> ended
  * Semua nilai yang dibaca callback async diambil dari ref agar tidak basi.
  */
-export default function useVoiceChat({ tab, aiMode, askFirst, voiceLang = 'en', onToast, isFeedVisible }) {
+export default function useVoiceChat({ tab, aiMode, askFirst, voiceLang = 'en', onToast, isFeedVisible, actionsInChat }) {
   const [status, setStatus] = useState('idle')
   const [muted, setMuted] = useState(false)
   const [seconds, setSeconds] = useState(0)
@@ -43,7 +44,7 @@ export default function useVoiceChat({ tab, aiMode, askFirst, voiceLang = 'en', 
   const [spoken, setSpoken] = useState(null) // { id, n }: bagian pesan yang sudah diucapkan saat call
 
   const live = useRef({})
-  live.current = { ...live.current, tab, aiMode, askFirst, voiceLang, onToast, isFeedVisible, muted, seconds }
+  live.current = { ...live.current, tab, aiMode, askFirst, voiceLang, onToast, isFeedVisible, actionsInChat, muted, seconds }
 
   const r = useRef({
     active: false,
@@ -100,7 +101,8 @@ export default function useVoiceChat({ tab, aiMode, askFirst, voiceLang = 'en', 
   }
   const toast = (msg) => live.current.onToast?.(msg)
   const patchItem = (id, patch) => setFeed((f) => f.map((x) => (x.id === id ? { ...x, ...patch } : x)))
-  const feedShown = () => !!live.current.isFeedVisible?.()
+  // Aksi sedang terlihat: feed Actions di layar, atau kartu aksi di percakapan (mode Chat di HP)
+  const feedShown = () => !!live.current.actionsInChat || !!live.current.isFeedVisible?.()
   const showWaiting = () => {
     const card = cardFor(r.current.ctx.pending, r.current.lang)
     setWaiting((w) => {
@@ -344,7 +346,7 @@ export default function useVoiceChat({ tab, aiMode, askFirst, voiceLang = 'en', 
       const last = s.actions[s.actions.length - 1]
       if (last) {
         undoAction(last.id)
-        toast({ kind: 'undo', text: undoneText(last) })
+        if (!live.current.actionsInChat) toast({ kind: 'undo', text: undoneText(last) })
         deliver(undoReply(last.kind, s.lang))
       } else {
         deliver(nothingToUndo(s.lang))
@@ -372,9 +374,12 @@ export default function useVoiceChat({ tab, aiMode, askFirst, voiceLang = 'en', 
         t: stamp(),
       }
       setFeed((f) => [item, ...f])
-      // Assistant baru melapor setelah pekerjaannya selesai. Toast hasil aksi selalu tampil.
+      // Kartu aksi di percakapan (isinya dibaca dari feed lewat actionId)
+      pushMsg('action', work.title, s.active ? 'voice' : 'chat', { actionId: a.id })
+      // Assistant baru melapor setelah pekerjaannya selesai. Toast hasil aksi tampil,
+      // kecuali kartunya sudah terlihat di percakapan.
       runWork(item, () => {
-        toast({
+        if (!live.current.actionsInChat) toast({
           kind: 'success',
           text: a.label,
           key: `action:${a.id}`,
@@ -676,13 +681,59 @@ export default function useVoiceChat({ tab, aiMode, askFirst, voiceLang = 'en', 
   useEffect(() => {
     const s = r.current
     if (!s.active) {
-      // Chat tanpa call: briefing tab baru masuk ke percakapan
+      // Chat tanpa call: pemisah nama tab, lalu briefing tab baru masuk ke percakapan
       if (!s.chatStarted || s.chatTabKey === tabKey) return
-      s.chatTabKey = tabKey
       s.lang = live.current.voiceLang
-      const o = openingFor(live.current.tab, s.lang, { done: s.ctx.done, switched: true })
-      s.ctx = o.ctx
-      chatReply(o.reply, false, { parts: o.parts })
+      const t = live.current.tab
+      // Briefing tab sebelumnya belum disentuh (belum ada pesan sesudahnya): diganti, bukan ditumpuk
+      const prev = s.lastBrief && s.lastBrief.seq === s.msgSeq ? s.lastBrief : null
+      s.lastBrief = null
+      // Tab asal dan keadaannya sebelum rangkaian pindah tab yang belum disentuh
+      let inherit = prev && { fromKey: prev.fromKey, ctxBefore: prev.ctxBefore }
+      if (s.briefTimer) {
+        // Masih memudar dari pindah tab sebelumnya: selesaikan sekarang, briefing tab itu tidak jadi ditulis
+        clearTimeout(s.briefTimer.id)
+        s.briefTimer.drop()
+        inherit = s.briefTimer.inherit
+        s.briefTimer = null
+      }
+      // Kembali ke tab asal sebelum briefing itu disentuh: cukup hapus briefingnya, percakapan lama sudah di atas
+      const back = !!inherit && inherit.fromKey === tabKey
+      const fromKey = inherit ? inherit.fromKey : s.chatTabKey
+      const ctxBefore = inherit ? inherit.ctxBefore : s.ctx
+      s.chatTabKey = tabKey
+      let post
+      if (back) {
+        s.ctx = ctxBefore
+        post = () => {
+          s.briefTimer = null
+          showWaiting()
+        }
+      } else {
+        const o = openingFor(t, s.lang, { done: s.ctx.done, chat: true, pending: ctxBefore.pending })
+        s.ctx = o.ctx
+        post = () => {
+          s.briefTimer = null
+          const div = pushMsg('tab', tabName(t), 'chat')
+          chatReply(o.reply, false, { parts: o.parts })
+          s.lastBrief = { ids: [div, r.current.msgSeq], seq: r.current.msgSeq, fromKey, ctxBefore }
+        }
+      }
+      if (prev) {
+        setWaiting(null)
+        setMessages((m) => m.map((x) => (prev.ids.includes(x.id) ? { ...x, leaving: true } : x)))
+        const drop = () => setMessages((m) => m.filter((x) => !prev.ids.includes(x.id)))
+        s.briefTimer = {
+          drop,
+          inherit: { fromKey, ctxBefore },
+          id: setTimeout(() => {
+            drop()
+            post()
+          }, BRIEF_FADE_MS),
+        }
+        return
+      }
+      post()
       return
     }
     if (s.tabKey === tabKey) return

@@ -165,6 +165,9 @@ const NOTHING_HERE = {
   id: 'Di tampilan ini lagi nggak ada yang perlu kamu urus.',
 }
 const ALL_HANDLED = { en: 'Everything in this view is handled.', id: 'Semua yang ada di sini udah beres.' }
+// Versi chat menyebut nama tab, karena pemisah tab sudah menandai perpindahannya
+const NOTHING_IN = { en: (n) => `Nothing needs you in ${n} right now.`, id: (n) => `Di ${n} lagi nggak ada yang perlu kamu urus.` }
+const ALL_HANDLED_IN = { en: (n) => `Nothing urgent left in ${n}.`, id: (n) => `Di ${n} udah nggak ada yang mendesak.` }
 
 /** Briefing dari fakta yang cocok; yang sudah ditangani di sesi ini dilewati. */
 function factBriefing(scope, done, lang, shop) {
@@ -633,19 +636,31 @@ const BYE = [
 const THANKS = ['thanks', 'thank you', 'cheers', 'makasih', 'terima kasih', 'trims', 'tengkyu']
 
 const ELSEWHERE = { en: 'Outside this view:', id: 'Di luar itu,' }
+// Tawaran yang sama dengan pertanyaan yang masih menunggu: cukup diingatkan, tidak diulang utuh
+const REMIND = {
+  offer_ship: { en: 'The 4 shipping labels are still waiting. Get them ready now?', id: '4 label pengiriman masih menunggu. Mau aku siapin sekarang?' },
+  offer_chats: { en: 'The 4 size questions in Chats are still waiting. Reply now?', id: '4 pertanyaan ukuran di Chats masih menunggu. Mau aku balas sekarang?' },
+  offer_stock: { en: 'The black hoodie stock is still waiting. Sync it now?', id: 'Stok hoodie hitam masih menunggu. Mau aku samain sekarang?' },
+  offer_exchange: { en: 'The color complaint is still waiting. Offer an exchange now?', id: 'Komplain warna masih menunggu. Mau aku tawarin tukar sekarang?' },
+}
 // Tab diganti di tengah call: konfirmasi singkat, lalu briefing tab baru
 const SWITCHED_TAB = { en: (n) => `Okay, switching to ${n}.`, id: (n) => `Oke, pindah ke ${n}.` }
 
 /**
  * Briefing pembuka + tawaran pertama untuk sebuah tab.
  * done = yang sudah ditangani di sesi ini (dilewati), switched = dipanggil karena tab diganti saat call.
+ * chat = tab diganti di mode Chat: tanpa kalimat "switching to" (sudah ada pemisah tab),
+ * dan pending = pertanyaan yang masih menunggu, supaya tidak diulang utuh.
  */
-export function openingFor(tab, lang = 'en', { done = [], switched = false } = {}) {
+export function openingFor(tab, lang = 'en', { done = [], switched = false, chat = false, pending = null } = {}) {
   const scope = scopeOf(tab)
   const custom = tab && typeof tab === 'object'
   const handWritten = !custom && !done.length // briefing tab bawaan di awal sesi
   const b = handWritten ? briefingFor(lang, tab) : factBriefing(scope, done, lang, custom ? tab.shop : undefined)
   let brief = (b.lead + b.tail).replace(/\.{2,}$/, '.')
+  if (chat && (brief === L(ALL_HANDLED, lang) || brief === L(NOTHING_HERE, lang))) {
+    brief = L(brief === L(ALL_HANDLED, lang) ? ALL_HANDLED_IN : NOTHING_IN, lang)(tabName(tab))
+  }
   if (switched) brief = `${(SWITCHED_TAB[lang] || SWITCHED_TAB.en)(tabName(tab))} ${brief}`
   const ctx = { pending: null, done, scope }
   const item = QUEUE.find((q) => scope.includes(q.key) && !done.includes(q.key))
@@ -656,7 +671,10 @@ export function openingFor(tab, lang = 'en', { done = [], switched = false } = {
   }
   // Tidak ada yang bisa dikerjakan di tab ini: tawarkan hal penting di luar cakupannya
   const s = nextSuggestion(done, lang)
-  if (s) return { ...two(brief, s.line, L(ELSEWHERE, lang)), ctx: { ...ctx, pending: s.step } }
+  if (s) {
+    const line = chat && s.step === pending && REMIND[s.step] ? L(REMIND[s.step], lang) : s.line
+    return { ...two(brief, line, L(ELSEWHERE, lang)), ctx: { ...ctx, pending: s.step } }
+  }
   return { ...two(`${brief} ${L(ALL_DONE, lang).split('. ').pop()}`), ctx }
 }
 

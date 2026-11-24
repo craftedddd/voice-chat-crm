@@ -200,7 +200,16 @@ export default function App() {
   )
 
   // Voice chat sungguhan (mic + pengenalan suara + suara balasan)
-  const voice = useVoiceChat({ tab: activeCtx, aiMode, askFirst, voiceLang, onToast: showToast, isFeedVisible })
+  const voice = useVoiceChat({
+    tab: activeCtx,
+    aiMode,
+    askFirst,
+    voiceLang,
+    onToast: showToast,
+    isFeedVisible,
+    // Di HP mode Chat, kartu aksi tampil di percakapan, jadi toast aksi tidak perlu
+    actionsInChat: mode === 'chat' && mobile,
+  })
 
   // Saat sesi dimulai, panel pindah ke Actions (sekali per sesi; pilihan user setelahnya dihormati)
   useEffect(() => {
@@ -354,6 +363,10 @@ export default function App() {
           {mode === 'chat' ? (
             <ChatCard
               messages={voice.messages}
+              feed={voice.feed}
+              inlineActions={mobile}
+              onUndo={voice.undo}
+              onToast={showToast}
               typing={voice.typing}
               waiting={voice.waiting}
               call={{ status: voice.status, seconds: voice.seconds, muted: voice.muted }}
