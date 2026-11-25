@@ -507,6 +507,19 @@ export default function useVoiceChat({ tab, aiMode, askFirst, voiceLang = 'en', 
     rec.maxAlternatives = 4
     s.rec = rec
 
+    // Ucapan pendek ("ya", "gaskan") kadang tidak pernah ditandai final oleh browser, terutama
+    // bahasa Indonesia dan Safari iPhone: teksnya muncul lalu sesi berhenti, atau menggantung.
+    // Simpan teks sementara terakhir supaya tetap diproses saat sesi berhenti atau user diam.
+    let heard = null // { text, result }
+    let idle = null
+    const finishHeard = () => {
+      clearTimeout(idle)
+      if (!heard || s.rec !== rec || s.status !== 'listening' || live.current.muted) return
+      const { text, result } = heard
+      heard = null
+      handleFinal(pickHeard(text, result, s))
+    }
+
     rec.onresult = (e) => {
       if (s.rec !== rec) return
       s.bump = 0.55
@@ -518,7 +531,16 @@ export default function useVoiceChat({ tab, aiMode, askFirst, voiceLang = 'en', 
       if (!text) return
       setCaption({ who: 'user', lead: text, tail: '' })
       const last = e.results[e.results.length - 1]
-      if (last.isFinal) handleFinal(pickHeard(text, last, s))
+      clearTimeout(idle)
+      if (last.isFinal) {
+        heard = null
+        handleFinal(pickHeard(text, last, s))
+        return
+      }
+      heard = { text, result: last }
+      // Jawaban ya/tidak yang sedang ditunggu cukup ditunggu sebentar; kalimat lain diberi jeda lebih lama
+      const quick = s.ctx?.pending && replyKind(pickHeard(text, last, s))
+      idle = setTimeout(finishHeard, quick ? 900 : 1800)
     }
 
     rec.onerror = (e) => {
@@ -547,6 +569,8 @@ export default function useVoiceChat({ tab, aiMode, askFirst, voiceLang = 'en', 
 
     rec.onend = () => {
       if (s.rec !== rec) return
+      if (heard && s.status === 'listening' && !live.current.muted) return finishHeard()
+      clearTimeout(idle)
       s.rec = null
       if (!s.active || s.status !== 'listening' || live.current.muted) return
       // Hindari loop restart yang terlalu rapat
