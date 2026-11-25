@@ -219,9 +219,10 @@ Pengecualian: koreografi toast (morph titik ke pill) memakai durasi literal kare
 ### Aturan persetujuan aksi
 
 - **Aksi yang terlihat pembeli** (membalas chat, menawarkan tukar barang) **selalu** minta persetujuan dulu, apa pun posisi toggle Ask Me First. Detail kartunya menyebut "Buyer will see this".
-- **Aksi internal** (label pengiriman, sinkron stok, label retur) mengikuti toggle Ask Me First.
+- **Label pengiriman** juga **selalu** minta persetujuan, karena label memesan penjemputan kurir. Sebelum dibuat, user melihat daftar pesanannya (`OrderPick`) dan bisa melepas centang pesanan yang belum siap. Tombolnya menyebut jumlah ("Create 3 labels"). Di toast persetujuan, tombolnya "Review" dan membuka feed Actions, bukan langsung membuat label.
+- **Aksi internal lainnya** (sinkron stok, label retur) mengikuti toggle Ask Me First.
 - Semua aksi bisa dibatalkan, lewat Undo di feed atau toast, atau lewat suara ("undo that" / "batalin").
-- Penandanya ada di `brain.js`: langkah dengan `buyer: true`.
+- Penandanya ada di `brain.js`: langkah dengan `buyer: true` (terlihat pembeli) atau `review: true` (daftarnya harus dilihat dulu).
 
 ### Bahasa
 
@@ -259,6 +260,7 @@ Pakai ulang komponen ini sebelum membuat yang baru.
 | Tab context | `ContextTabs.jsx` | Deretan tab dengan drag, zona hapus, dan popover editor |
 | Switch mode | `ModeSwitch` di `App.jsx`, `.modeswitch` | Chat atau Voice, memakai `.seg` |
 | Kartu chat | `ChatCard.jsx` | Percakapan (`.chatmsg`, jawaban dua paragraf `.aimsg`), chip jawaban, `.composer`, `.callbar` saat call berjalan, dan kartu aksi lipat `.chatact` (≤ 640px) |
+| Daftar pesanan | `OrderPick.jsx` | Daftar bercentang sebelum label pengiriman dibuat (`.opick`). Centangnya lingkaran bergaris tanpa isi warna; baris yang dilepas dicoret dan memudar. `compact` untuk feed Actions. Setelah dijawab, daftarnya tetap tampil sebagai catatan (`frozen`): di chat di bawah pertanyaannya, dan di item hasil aksi pada feed. Kalau dijawab "Not now", ditinggal, atau di-undo, semua baris memudar (`declined`) |
 | Editor context | `ContextEditor.jsx` | Form custom context, dipakai di popover dan bottom sheet |
 | Chip pilihan | `.chip--toggle` | Chip yang bisa dipilih, `.is-on` saat terpilih |
 

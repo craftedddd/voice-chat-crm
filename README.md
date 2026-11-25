@@ -17,7 +17,8 @@ orb gradien dibuat murni dengan CSS.
 - AI Mode mengubah gaya jawaban: Brief answers (ringkas), Think it through (menimbang opsi lalu bertanya balik), Guide me (langkah demi langkah), Listen only (diam dan mencatat)
 - Assistant proaktif: setiap jawaban ditutup rekomendasi dan tawaran bantuan ("Want me to get shipping labels ready for the 4 orders due by 2 PM?"). Jawab ya atau tidak, lalu ia menindaklanjuti dan menawarkan hal penting berikutnya
 - Lima skenario toko: pesanan mendesak (label pengiriman), chat soal ukuran (balas pakai size chart), stok menipis (sinkron stok di dua toko), komplain warna (tawarkan tukar, lalu label retur), dan rekap penjualan kemarin (informasi saja)
-- Ask Me First: aksi internal (label, sinkron stok) mengikuti toggle ini. Aksi yang terlihat pembeli (membalas chat, menawarkan tukar) **selalu** minta persetujuan, apa pun posisi toggle
+- Ask Me First: aksi internal seperti sinkron stok mengikuti toggle ini. Aksi yang terlihat pembeli (membalas chat, menawarkan tukar) dan label pengiriman **selalu** minta persetujuan, apa pun posisi toggle
+- Label pengiriman: sebelum dibuat, assistant menampilkan daftar 4 pesanan (produk, toko, nomor pesanan, batas kirim). Pesanan yang belum siap bisa dilepas centangnya, dan tombol ikut berubah jadi "Create 3 labels". Jawaban "ya" lewat suara juga mengikuti centang ini. Setelah dijawab, daftarnya tetap ada sebagai catatan pesanan mana yang dibuatkan label dan mana yang dilewati
 - Mute/unmute, akhiri sesi, mulai ulang, timer sesi, dan ucapan seperti "goodbye" juga mengakhiri sesi
 - Ringkasan sesi saat selesai: durasi, Actions taken, Still waiting (yang belum ditangani lewat aksi), Check tomorrow, transkrip, salin, unduh, dan rating
 - Toast beranimasi di atas area konten (titik turun lalu mekar menjadi pill). Aksi assistant bisa dibatalkan lewat tombol Undo atau dengan mengucapkan "undo that" / "batalin"
@@ -114,4 +115,5 @@ src/
     ActionFeed.jsx         # Live actions: aksi assistant langkah demi langkah
     ContextTabs.jsx        # deretan tab context: drag urutan, zona hapus, popover editor
     ContextEditor.jsx      # form custom context (template, fokus, toko, produk, pratinjau)
+    OrderPick.jsx          # daftar pesanan bercentang sebelum label pengiriman dibuat
 ```

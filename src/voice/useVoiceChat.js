@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { getSR, isVoiceSupported, primeSpeech, speak, createMicMeter } from './speech.js'
-import { respond, openingFor, cardFor, stillWaiting, checkTomorrow, undoReply, nothingToUndo, switchTo, switchedLine, tabName, replyKind, resumeFrom } from './brain.js'
+import { respond, openingFor, cardFor, stillWaiting, checkTomorrow, undoReply, nothingToUndo, switchTo, switchedLine, tabName, replyKind, resumeFrom, DUE_ORDERS } from './brain.js'
 
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v))
 // Tempo langkah kerja Live actions (ms): cukup lambat untuk terbaca, tidak bikin menunggu
@@ -63,6 +63,7 @@ export default function useVoiceChat({ tab, aiMode, askFirst, voiceLang = 'en', 
     actionSeq: 0,
     noteSeq: 0,
     workTimers: [],
+    skip: [], // pesanan yang dilepas centangnya di kartu label pengiriman
     finishWork: null, // menuntaskan aksi yang sedang berjalan (dipakai saat sesi diakhiri)
     netErrors: 0,
     startedAt: 0,
@@ -107,9 +108,19 @@ export default function useVoiceChat({ tab, aiMode, askFirst, voiceLang = 'en', 
     const card = cardFor(r.current.ctx.pending, r.current.lang)
     setWaiting((w) => {
       if (!card) return null
-      if (w && w.step === card.step) return w.yes.say === card.yes.say ? w : { ...card, t: w.t } // bahasa berganti
+      // bahasa berganti: kartu disusun ulang, centang pesanan tetap
+      if (w && w.step === card.step) return w.yes.say === card.yes.say ? w : { ...card, t: w.t, skip: w.skip }
+      r.current.skip = [] // kartu baru: semua pesanan dicentang lagi
       return { ...card, t: stamp() }
     })
+  }
+
+  /** Centang atau lepas satu pesanan di daftar label pengiriman. */
+  function toggleOrder(id) {
+    const s = r.current
+    s.skip = s.skip.includes(id) ? s.skip.filter((x) => x !== id) : [...s.skip, id]
+    const skip = s.skip
+    setWaiting((w) => (w && w.orders ? { ...w, skip } : w))
   }
 
   const micBlockedToast = () => ({
@@ -337,9 +348,26 @@ export default function useVoiceChat({ tab, aiMode, askFirst, voiceLang = 'en', 
       tab: live.current.tab,
       ctx: before,
       lang: s.lang,
+      skip: s.skip || [],
     }
     const out = respond(turn)
     s.ctx = out.ctx
+    // Daftar pesanan label pengiriman sudah dijawab (atau ditinggal): simpan sebagai catatan
+    const shipSnap =
+      before.pending === 'offer_ship' && out.ctx.pending !== 'offer_ship' && !out.undo
+        ? { list: DUE_ORDERS, skip: [...(s.skip || [])], outcome: out.toast ? 'done' : 'declined' }
+        : null
+    const freezeOrders = (actionId = null) => {
+      if (!shipSnap) return
+      // Ditempel ke pesan assistant terakhir, yaitu pesan yang tadi menampilkan daftarnya
+      setMessages((m) => {
+        const i = m.map((x) => x.who).lastIndexOf('ai')
+        if (i < 0) return m
+        const copy = m.slice()
+        copy[i] = { ...copy[i], orders: { ...shipSnap, actionId } }
+        return copy
+      })
+    }
 
     // "Undo that": batalkan aksi terakhir
     if (out.undo) {
@@ -362,9 +390,11 @@ export default function useVoiceChat({ tab, aiMode, askFirst, voiceLang = 'en', 
       a.at = Date.now()
       s.actions.push(a)
       const work = out.work || { title: a.label, steps: [], detail: '' }
+      freezeOrders(a.id)
       const item = {
         id: a.id,
         kind: a.kind,
+        ...(shipSnap && { orders: shipSnap.list, skip: shipSnap.skip }),
         status: 'running',
         title: work.title,
         doneTitle: a.label,
@@ -391,6 +421,7 @@ export default function useVoiceChat({ tab, aiMode, askFirst, voiceLang = 'en', 
       })
       return
     }
+    freezeOrders()
     deliver(out.reply, !!out.endCall, { parts: out.parts })
   }
 
@@ -826,6 +857,7 @@ export default function useVoiceChat({ tab, aiMode, askFirst, voiceLang = 'en', 
     toggleMute,
     getLevel,
     answer,
+    toggleOrder,
     undo: undoFromFeed,
     messages,
     typing,

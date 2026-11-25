@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { CheckIcon } from '../icons.jsx'
+import OrderPick, { labelsFor, pickedOf } from './OrderPick.jsx'
 
 export const OPEN_SOON = {
   label: 'Orders are coming soon',
@@ -83,6 +84,11 @@ function ActionItem({ item, isStatic, onUndo, onToast }) {
         </div>
       )}
 
+      {(done || undone) && item.orders && (
+        <div className="tev__after">
+          <OrderPick orders={item.orders} skip={item.skip} compact frozen declined={undone} />
+        </div>
+      )}
       {(done || undone) && (
         <p className="tev__meta tev__after">
           {undone ? (
@@ -106,7 +112,8 @@ function ActionItem({ item, isStatic, onUndo, onToast }) {
   )
 }
 
-function WaitingItem({ card, isStatic, onAnswer }) {
+function WaitingItem({ card, isStatic, onAnswer, onToggleOrder }) {
+  const picked = pickedOf(card)
   return (
     <Row isStatic={isStatic} node="waiting">
       <div className="tev__row">
@@ -114,9 +121,10 @@ function WaitingItem({ card, isStatic, onAnswer }) {
         <span className="tev__time">{clock(card.t)}</span>
       </div>
       <p className="tev__meta">{card.detail}</p>
+      {card.orders && <OrderPick orders={card.orders} skip={card.skip} onToggle={onToggleOrder} compact />}
       <div className="tev__ask">
-        <button className="tbtn" onClick={() => onAnswer(card.yes.say)}>
-          {card.yes.label}
+        <button className="tbtn" disabled={picked === 0} onClick={() => onAnswer(card.yes.say)}>
+          {picked === null ? card.yes.label : labelsFor(picked)}
         </button>
         <button className="tlink" onClick={() => onAnswer(card.no.say)}>
           {card.no.label}
@@ -127,7 +135,7 @@ function WaitingItem({ card, isStatic, onAnswer }) {
 }
 
 /** Feed Live actions: aksi assistant selama voice chat, sebagai garis waktu. */
-export default function ActionFeed({ phase, feed, waiting, listenOnly, onAnswer, onUndo, onToast }) {
+export default function ActionFeed({ phase, feed, waiting, listenOnly, onAnswer, onToggleOrder, onUndo, onToast }) {
   const unit = listenOnly ? 'note' : 'action'
   // Item yang sudah ada saat feed dibuka tidak dianimasikan ulang (misalnya saat pindah tab)
   const initial = useRef(null)
@@ -159,6 +167,7 @@ export default function ActionFeed({ phase, feed, waiting, listenOnly, onAnswer,
             card={waiting}
             isStatic={initial.current.has(`w:${waiting.step}`)}
             onAnswer={onAnswer}
+            onToggleOrder={onToggleOrder}
           />
         )}
         {feed.map((item) => (

@@ -2582,6 +2582,75 @@ button.chatact__head { cursor: pointer; }
   outline-offset: 2px;
 }
 
+/* Daftar pesanan sebelum label pengiriman dibuat (OrderPick): ketuk baris untuk melewatinya */
+.opick {
+  list-style: none;
+  max-width: 520px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  overflow: hidden;
+}
+.opick li + li { border-top: 1px solid var(--border); }
+.opick__row {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  padding: var(--s-2-5) var(--s-3-5);
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease);
+}
+.opick__row:hover { background: var(--surface-hover); }
+.opick__input { position: absolute; opacity: 0; width: 1px; height: 1px; pointer-events: none; }
+/* Tanda centang: lingkaran bergaris, tanpa isi warna */
+.opick__mark {
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  display: grid;
+  place-items: center;
+  border: 1.5px solid var(--text);
+  border-radius: var(--r-full);
+  color: var(--text);
+  transition: border-color var(--dur-fast) var(--ease);
+}
+.opick__row.is-off .opick__mark { border-color: var(--control-off); }
+.opick__input:focus-visible + .opick__mark { outline: 2px solid var(--accent); outline-offset: 2px; }
+.opick__main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.opick__item {
+  font-size: var(--fs-md);
+  font-weight: var(--fw-medium);
+  line-height: var(--lh-tight);
+  color: var(--text);
+}
+.opick__meta,
+.opick__due {
+  font-size: var(--fs-xs);
+  line-height: var(--lh-base);
+  color: var(--text-muted);
+}
+.opick__due { flex: 0 0 auto; font-variant-numeric: tabular-nums; }
+.opick__row.is-off .opick__item,
+.opick__row.is-off .opick__meta,
+.opick__row.is-off .opick__due { color: var(--text-faint); }
+.opick__row.is-off .opick__item { text-decoration: line-through; }
+/* Sudah dijawab: catatan yang tidak bisa diubah lagi */
+.opick.is-frozen .opick__row { cursor: default; }
+.opick.is-frozen .opick__row:hover { background: none; }
+.opick.is-declined .opick__mark { border-color: var(--control-off); }
+.opick.is-declined .opick__item,
+.opick.is-declined .opick__meta,
+.opick.is-declined .opick__due { color: var(--text-faint); }
+.chatcard__record { margin-top: var(--s-3); } /* menggantikan daftar aktif di tempat yang sama, tanpa animasi */
+/* Di feed Actions (panel sempit) */
+.opick--compact { margin-top: var(--s-2); }
+.opick--compact .opick__row { gap: var(--s-2-5); padding: var(--s-2) var(--s-3); }
+.opick--compact .opick__mark { width: 16px; height: 16px; }
+.opick--compact .opick__item { font-size: var(--fs-sm); }
+/* Semua pesanan dilepas: tombol "Select an order" belum bisa ditekan */
+.chip:disabled { color: var(--text-faint); border-color: var(--border); cursor: default; }
+.tbtn:disabled { background: var(--surface-active); color: var(--text-faint); cursor: default; transform: none; }
+
 @keyframes afeed-open { from { grid-template-rows: 0fr; } }
 @keyframes afeed-enter { from { opacity: 0; transform: translateY(-4px); } }
 @keyframes afeed-fade { from { opacity: 0; } }

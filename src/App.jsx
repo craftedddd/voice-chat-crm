@@ -278,6 +278,7 @@ export default function App() {
     seconds: voice.seconds,
     listenOnly: aiMode === 'listen',
     onAnswer: voice.answer,
+    onToggleOrder: voice.toggleOrder,
     onUndo: voice.undo,
     onToast: showToast,
   }
@@ -299,15 +300,21 @@ export default function App() {
       api.setSticky(null)
       return
     }
+    const openFeed = () => {
+      setPanelTab('actions')
+      if (mobile) setSheetOpen(true)
+      // Layar sedang: panel ditumpuk di bawah kartu, jadi gulir sampai feed terlihat
+      else requestAnimationFrame(() => document.querySelector('.spanel')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }))
+    }
     api.setSticky({
       kind: 'ask',
       text: waiting.title,
       key: `ask:${waiting.step}`,
-      action: { label: waiting.yes.label, onClick: () => answer(waiting.yes.say) },
-      onTap: () => {
-        setPanelTab('actions')
-        if (mobile) setSheetOpen(true)
-      },
+      // Label pengiriman: daftarnya harus dilihat dulu, jadi tombolnya membuka feed Actions
+      action: waiting.orders
+        ? { label: 'Review', onClick: openFeed }
+        : { label: waiting.yes.label, onClick: () => answer(waiting.yes.say) },
+      onTap: openFeed,
     })
   }, [waiting, answer, sheetOpen, panelTab, isFeedVisible, toaster.api, mode, callLive])
 
@@ -374,6 +381,7 @@ export default function App() {
               spoken={voice.spoken}
               onSend={voice.send}
               onAnswer={voice.answer}
+              onToggleOrder={voice.toggleOrder}
               onVoice={() => setMode('voice')}
               onMute={voice.toggleMute}
               onEnd={voice.end}

@@ -180,12 +180,14 @@ function factBriefing(scope, done, lang, shop) {
 // Langkah percakapan. Tiap langkah punya pertanyaan (ask) dan hasil jika user
 // menjawab ya/tidak. Hasil: { reply, toast?, next?: idLangkah, mark?: kunciSelesai }
 // buyer: true = aksi terlihat pembeli, SELALU minta persetujuan (abaikan Ask Me First).
+// review: true = user harus melihat daftarnya dulu (label memesan kurir), juga SELALU minta persetujuan.
 // ---------------------------------------------------------------------------
 const STEPS = {
   offer_ship: {
+    review: true,
     ask: {
-      en: ['Want me to get shipping labels ready for the 4 orders due by 2 PM?'],
-      id: ['Mau aku siapin label pengiriman buat 4 pesanan yang batasnya jam 2 siang?'],
+      en: ['Want me to get shipping labels ready for the 4 orders due by 2 PM? The earliest is due at 11 AM.'],
+      id: ['Mau aku siapin label pengiriman buat 4 pesanan yang batasnya jam 2 siang? Yang paling awal jam 11.'],
     },
     short: { en: 'Want me to get those 4 shipping labels ready?', id: 'Mau aku siapin 4 label pengirimannya?' },
     yes: {
@@ -318,13 +320,23 @@ const WORK = {
   },
 }
 
+// 4 pesanan yang harus dikirim sebelum jam 2 siang (data demo, label UI bahasa Inggris).
+// Ditampilkan sebagai daftar bercentang sebelum label dibuat.
+export const DUE_ORDERS = [
+  { id: '2411-0832', shop: 'Shopee', item: 'Black hoodie M ×1', due: '11:00 AM' },
+  { id: '2411-0847', shop: 'Shopee', item: 'White tee L ×2', due: '12:00 PM' },
+  { id: '2411-0851', shop: 'Shopee', item: 'Sage hijab ×3', due: '1:30 PM' },
+  { id: '5521-1094', shop: 'TikTok', item: 'Grey hoodie XL ×1', due: '2:00 PM' },
+]
+
 // Kartu "Needs your OK" (toast persetujuan dan feed). Label UI bahasa Inggris,
 // say = kalimat yang dikirim seolah diucapkan user, dalam bahasa percakapan.
 const NOT_NOW = { label: 'Not now', say: { en: 'Not now', id: 'Nanti aja' } }
 const CARDS = {
   offer_ship: {
-    title: 'Create 4 shipping labels?',
-    detail: '3 Shopee, 1 TikTok · due 2:00 PM',
+    title: 'Create shipping labels?',
+    detail: 'Due by 2:00 PM · books a courier pickup',
+    orders: DUE_ORDERS,
     yes: { label: 'Create labels', say: { en: 'Yes, do it', id: 'Iya, gas' } },
     no: NOT_NOW,
   },
@@ -362,6 +374,7 @@ export function cardFor(stepId, lang = 'en') {
     step: stepId,
     title: c.title,
     detail: c.detail,
+    ...(c.orders && { orders: c.orders, skip: [] }),
     yes: { label: c.yes.label, say: L(c.yes.say, lang) },
     no: { label: c.no.label, say: L(c.no.say, lang) },
   }
@@ -478,13 +491,13 @@ function conclude(out, ctx, lang) {
     said = s ? two(body, s.line, rnd(CONNECT[lang] || CONNECT.en)) : two(`${body} ${L(ALL_DONE, lang)}`)
     pending = s ? s.step : null
   }
-  return { ...said, toast: out.toast, work: out.toast ? WORK[out.toast] : undefined, ctx: { ...ctx, pending, done } }
+  return { ...said, toast: out.toast, work: out.work || (out.toast ? WORK[out.toast] : undefined), ctx: { ...ctx, pending, done } }
 }
 
-// User meminta aksi langsung. Aksi yang terlihat pembeli selalu minta izin dulu;
-// aksi internal mengikuti toggle Ask Me First.
+// User meminta aksi langsung. Aksi yang terlihat pembeli dan label pengiriman selalu minta izin dulu;
+// aksi internal lainnya mengikuti toggle Ask Me First.
 function requestAction(stepId, askFirst, ctx, lang) {
-  if (askFirst || STEPS[stepId].buyer) {
+  if (askFirst || STEPS[stepId].buyer || STEPS[stepId].review) {
     const lead = lang === 'id' ? rnd(['Siap.', 'Boleh.']) : rnd(['Sure.', 'Happy to.'])
     return { ...two(lead, askOf(stepId, lang)), ctx: { ...ctx, pending: stepId } }
   }
@@ -682,7 +695,49 @@ export function openingFor(tab, lang = 'en', { done = [], switched = false, chat
  * respond({ text, mode, askFirst, tab, ctx, lang })
  * -> { reply, ctx, toast?, work?, endCall?, undo? }
  */
-export function respond({ text, mode, askFirst, tab, ctx: prev, lang = 'en' }) {
+// Hasil "ya" untuk label pengiriman, mengikuti pesanan yang masih dicentang
+const count = (n, one, many) => `${n} ${n === 1 ? one : many}`
+function shipYes(skip, ctx, lang) {
+  const picked = DUE_ORDERS.filter((o) => !skip.includes(o.id))
+  if (picked.length === DUE_ORDERS.length) return conclude(STEPS.offer_ship.yes, ctx, lang)
+  if (!picked.length) {
+    // Semua pesanan dilepas centangnya: belum ada yang bisa dibuat
+    const body = {
+      en: 'No orders are selected yet. Tick at least one, or say not now.',
+      id: 'Belum ada pesanan yang dicentang. Centang minimal satu, atau bilang nanti aja.',
+    }
+    return { ...two(L(body, lang)), ctx: { ...ctx, pending: 'offer_ship' } }
+  }
+  const n = picked.length
+  const sp = picked.filter((o) => o.shop === 'Shopee').length
+  const tt = n - sp
+  // Satu toko saja: "all for Shopee", bukan "3 for Shopee"
+  const only = !sp ? 'TikTok' : !tt ? 'Shopee' : null
+  const shopsEn = only ? `all for ${only}` : `${sp} for Shopee and ${tt} for TikTok`
+  const shopsId = only ? `semuanya ${only}` : `${sp} Shopee dan ${tt} TikTok`
+  const left = DUE_ORDERS.length - n
+  const toast = `${count(n, 'shipping label', 'shipping labels')} ready`
+  return conclude(
+    {
+      reply: {
+        en: `Done. ${n === 1 ? `The ${only} shipping label is ready` : `${n} shipping labels are ready, ${shopsEn}`}. I left ${count(left, 'order', 'orders')} out for now.`,
+        id: `Beres. ${n === 1 ? `Label pengiriman ${only} udah siap` : `${n} label pengiriman udah siap, ${shopsId}`}. ${left} pesanan aku lewati dulu.`,
+      },
+      toast,
+      work: {
+        ...WORK['4 shipping labels ready'],
+        steps: ['Checked ship-by times', `Grouped ${count(n, 'urgent order', 'urgent orders')}`, `Created ${count(n, 'shipping label', 'shipping labels')}`],
+        detail: `${[sp && `${sp} Shopee`, tt && `${tt} TikTok`].filter(Boolean).join(', ')} · ${count(left, 'order', 'orders')} skipped`,
+      },
+      mark: 'ship',
+    },
+    ctx,
+    lang,
+  )
+}
+
+/** skip = nomor pesanan yang dilepas centangnya di daftar label pengiriman. */
+export function respond({ text, mode, askFirst, tab, ctx: prev, lang = 'en', skip = [] }) {
   const t = norm(text)
   const ctx = prev || { pending: null, done: [] }
   const id = lang === 'id'
@@ -696,6 +751,7 @@ export function respond({ text, mode, askFirst, tab, ctx: prev, lang = 'en' }) {
   if (ctx.pending && STEPS[ctx.pending]) {
     const step = STEPS[ctx.pending]
     const kind = replyKind(t)
+    if (kind === 'yes' && ctx.pending === 'offer_ship') return shipYes(skip, ctx, lang)
     if (kind === 'yes') return conclude(step.yes, ctx, lang)
     if (kind === 'no') return conclude(step.no, ctx, lang)
   }

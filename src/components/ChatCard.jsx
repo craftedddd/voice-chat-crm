@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { MicIcon, MicOffIcon, SendIcon, CloseIcon, CheckIcon, ChevronDownIcon } from '../icons.jsx'
 import { Node, OPEN_SOON, COLLAPSE_MS, clock as feedClock } from './ActionFeed.jsx'
+import OrderPick, { labelsFor, pickedOf } from './OrderPick.jsx'
 
 const clock = (t) => `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`
 const CALL_STATUS = {
@@ -151,6 +152,7 @@ function ChatAction({ item, isNew, onUndo, onToast }) {
                     })}
                   </ol>
                 )}
+                {!running && item.orders && <OrderPick orders={item.orders} skip={item.skip} compact frozen />}
                 {!running && (
                   <p className="tev__meta chatact__meta">
                     {item.detail}
@@ -217,6 +219,7 @@ export default function ChatCard({
   onOpenChat,
   onSend,
   onAnswer,
+  onToggleOrder,
   onVoice,
   onMute,
   onEnd,
@@ -274,15 +277,29 @@ export default function ChatCard({
   // Kartu aksi yang sedang berjalan sudah menunjukkan prosesnya, jadi titik loading disembunyikan
   const working = last?.who === 'action' && actionOf(last)?.status === 'running'
   const cardHost = waiting && !typing && last && last.who === 'ai' && last.parts?.next ? last.id : null
+  // Label pengiriman: daftar pesanan bercentang di atas chip, jumlah di chip mengikuti centang
+  const picked = pickedOf(waiting)
   const chips = waiting && (
-    <div className="chips chatcard__chips" key={waiting.step}>
-      <button type="button" className="chip chip--toggle" onClick={() => answer(waiting.yes.say)}>
-        {waiting.yes.label}
-      </button>
-      <button type="button" className="chip chip--toggle" onClick={() => answer(waiting.no.say)}>
-        {waiting.no.label}
-      </button>
-    </div>
+    <Fragment key={waiting.step}>
+      {waiting.orders && (
+        <div className="chatcard__chips">
+          <OrderPick orders={waiting.orders} skip={waiting.skip} onToggle={onToggleOrder} />
+        </div>
+      )}
+      <div className="chips chatcard__chips">
+        <button
+          type="button"
+          className="chip chip--toggle"
+          disabled={picked === 0}
+          onClick={() => answer(waiting.yes.say)}
+        >
+          {picked === null ? waiting.yes.label : labelsFor(picked)}
+        </button>
+        <button type="button" className="chip chip--toggle" onClick={() => answer(waiting.no.say)}>
+          {waiting.no.label}
+        </button>
+      </div>
+    </Fragment>
   )
 
 
@@ -339,6 +356,17 @@ export default function ChatCard({
                 </p>
               ) : (
                 <p className={`chatmsg ${m.id > mountMax ? 'is-new' : ''}`}>{m.text}</p>
+              )}
+              {m.who === 'ai' && m.orders && (
+                // Daftar pesanan yang sudah dijawab tetap tampil sebagai catatan
+                <div className="chatcard__record">
+                  <OrderPick
+                    orders={m.orders.list}
+                    skip={m.orders.skip}
+                    frozen
+                    declined={m.orders.outcome !== 'done' || feed.find((x) => x.id === m.orders.actionId)?.status === 'undone'}
+                  />
+                </div>
               )}
             </div>
           )
